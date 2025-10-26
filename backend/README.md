@@ -11,28 +11,6 @@ Empathic Care AI（ECAI）のバックエンドAPI。
 - **Task Queue**: Celery + Redis
 - **WebSocket**: Django Channels
 
-## プロジェクト構成
-
-```
-backend/
-├── config/                 # Django設定
-│   ├── settings/
-│   │   ├── base.py        # 共通設定
-│   │   ├── development.py # 開発環境設定
-│   │   └── production.py  # 本番環境設定
-│   ├── urls.py
-│   ├── asgi.py
-│   └── wsgi.py
-├── apps/                   # Djangoアプリケーション
-│   ├── core/              # 共通モデル・ユーティリティ
-│   ├── patients/          # 患者管理
-│   ├── conversations/     # 会話管理
-│   ├── emotions/          # 感情分析
-│   └── alerts/            # アラート管理
-├── manage.py
-├── pyproject.toml         # uv設定
-└── .env                   # 環境変数（.gitignoreに追加）
-```
 
 ## セットアップ
 
@@ -77,40 +55,6 @@ uv run python manage.py runserver
 
 API: http://localhost:8000/api/v1/
 管理画面: http://localhost:8000/admin/
-
-## API エンドポイント
-
-### 患者管理
-- `GET /api/v1/patients/` - 患者一覧
-- `POST /api/v1/patients/` - 患者作成
-- `GET /api/v1/patients/{id}/` - 患者詳細
-- `GET /api/v1/patients/{id}/dashboard/` - 患者ダッシュボード
-
-### 会話管理
-- `POST /api/v1/sessions/start/` - 会話開始
-- `POST /api/v1/sessions/{id}/end/` - 会話終了
-- `GET /api/v1/sessions/` - セッション一覧
-- `POST /api/v1/conversations/process_audio/` - 音声処理
-
-### 感情分析
-- `GET /api/v1/emotions/` - 感情分析一覧
-- `GET /api/v1/emotions/timeline/` - 感情タイムライン
-- `GET /api/v1/emotions/wheel/` - 感情ホイールデータ
-
-### アラート管理
-- `GET /api/v1/alerts/` - アラート一覧
-- `PATCH /api/v1/alerts/{id}/acknowledge/` - アラート確認
-- `PATCH /api/v1/alerts/{id}/resolve/` - アラート解決
-
-## データベースモデル
-
-詳細は `docs/develop.md` を参照してください。
-
-- **Patient**: 患者情報
-- **ConversationSession**: 会話セッション
-- **ConversationTurn**: 会話ターン
-- **EmotionAnalysis**: 感情分析結果
-- **Alert**: アラート通知
 
 ## 開発コマンド
 
@@ -168,17 +112,3 @@ uv add --dev package-name
 - `OPENAI_API_KEY`: OpenAI API キー（STT/TTS/LLM用）
 - `REDIS_URL`: Redis接続URL
 
-## TODO
-
-- [ ] STT/TTS/LLMサービス実装
-- [ ] 感情分析ロジック実装
-- [ ] アラート検出ロジック実装
-- [ ] WebSocket対応（リアルタイム通信）
-- [ ] Celeryタスク実装
-- [ ] テストコード作成
-- [ ] API認証強化
-- [ ] S3ストレージ連携
-
-## ライセンス
-
-Proprietary
