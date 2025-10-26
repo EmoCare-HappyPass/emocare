@@ -196,17 +196,27 @@ export default function TestConversationPage() {
       addLog(`感情: ${data.emotion.name_ja} (${data.emotion.name})`);
       addLog(`理由: ${data.emotion_reason}`);
 
-      if (data.ai_audio_base64) {
+      // Play AI audio response automatically
+      if (data.ai_audio_base64 && data.ai_audio_base64.length > 0) {
+        addLog(`音声データ受信: ${data.ai_audio_base64.length} bytes (base64)`);
         const audioBlob = base64ToBlob(data.ai_audio_base64, 'audio/mpeg');
         const audioUrl = URL.createObjectURL(audioBlob);
         if (audioRef.current) {
           audioRef.current.src = audioUrl;
-          audioRef.current.play();
-          addLog('AI音声再生中...');
+          audioRef.current.play().then(() => {
+            addLog('AI音声を自動再生中...');
+          }).catch((err) => {
+            addLog(`音声再生エラー: ${err.message}`);
+            console.error('Audio play error:', err);
+          });
         }
+      } else {
+        addLog('警告: 音声データが空です');
       }
 
-      alert('セッション終了成功！AI応答を確認してください。');
+      // セッションIDをクリア（新しいセッション開始を可能にする）
+      setSessionId('');
+      addLog('セッション終了完了。新しいセッションを開始できます。');
     } catch (error) {
       addLog(`セッション終了エラー: ${error}`);
       alert(`セッション終了失敗: ${error}`);
@@ -230,8 +240,7 @@ export default function TestConversationPage() {
     setAiResponse('');
     setEmotion('');
     setEmotionReason('');
-    setLogs([]);
-    addLog('全てクリアしました');
+    addLog('結果をクリアしました');
   };
 
   return (

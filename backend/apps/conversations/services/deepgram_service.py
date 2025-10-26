@@ -74,6 +74,10 @@ class DeepgramService:
         Returns:
             bytes: 音声データ（MP3形式）
         """
+        if not text or text.strip() == '':
+            print("TTS Warning: Empty text provided")
+            return b''
+
         url = f"{self.base_url}/speak"
         
         headers = {
@@ -90,6 +94,7 @@ class DeepgramService:
         }
 
         try:
+            print(f"TTS Request: {text[:50]}...")
             response = requests.post(
                 url,
                 headers=headers,
@@ -99,9 +104,13 @@ class DeepgramService:
             )
             response.raise_for_status()
             
-            # Return audio binary data
-            return response.content
+            audio_data = response.content
+            print(f"TTS Success: Received {len(audio_data)} bytes")
+            return audio_data
             
         except requests.exceptions.RequestException as e:
             print(f"Deepgram TTS Error: {e}")
+            if hasattr(e, 'response') and e.response is not None:
+                print(f"Response status: {e.response.status_code}")
+                print(f"Response body: {e.response.text[:200]}")
             return b''
