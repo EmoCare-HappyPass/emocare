@@ -60,7 +60,7 @@ JSON形式で返答してください:
 
         try:
             response = self.client.chat.completions.create(
-                model="gpt-4",
+                model="gpt-4o-mini",  # gpt-4o-miniはjson_objectをサポート
                 messages=[
                     {"role": "system", "content": "あなたは共感的な医療AIアシスタントです。患者の気持ちに寄り添い、非批判的に応答します。"},
                     {"role": "user", "content": prompt}
