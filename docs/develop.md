@@ -28,11 +28,12 @@
 | Django REST Framework | 3.16+ | REST API構築 |
 | PostgreSQL | 15+ | リレーショナルDB |
 | Redis | 7.0+ | キャッシュ・セッション管理 |
-| Django Channels | 4.0+ | WebSocket通信 |
-| Deepgram | Realtime API | 音声→テキスト変換（STT） |
-| OpenAI GPT-4 | - | LLM応答生成・感情分析 |
+| OpenAI Whisper | - | 音声→テキスト変換（STT） |
+| OpenAI GPT-4o-mini | - | LLM応答生成・感情分析 |
 | OpenAI TTS | - | テキスト→音声変換 |
 | uv | 0.9+ | Pythonパッケージ管理 |
+| Next.js | 15+ | フロントエンド |
+| React | 19+ | UIライブラリ |
 
 ### アーキテクチャ概要
 
@@ -48,8 +49,9 @@
    ┌────▼────┐         ┌───────▼────┐        ┌──────▼─────┐
    │  Redis  │         │ PostgreSQL │        │ External   │
    │ (Cache) │         │    (DB)    │        │  APIs      │
-   └─────────┘         └────────────┘        │ ・Deepgram │
-                                             │ ・OpenAI   │
+   └─────────┘         └────────────┘        │ ・OpenAI   │
+                                             │  (STT/TTS) │
+                                             │  (LLM)     │
                                              └────────────┘
 ```
 
@@ -359,6 +361,16 @@ class Patient(models.Model):
         ]
         verbose_name = '患者'
         verbose_name_plural = '患者'
+
+    @property
+    def is_authenticated(self):
+        """常に認証済みとして扱う（Django User互換性）"""
+        return True
+
+    @property
+    def is_anonymous(self):
+        """匿名ユーザーではない（Django User互換性）"""
+        return False
 
     def set_password(self, raw_password):
         """パスワードをハッシュ化して保存
@@ -813,13 +825,13 @@ Authorization: Token a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6
 
 {
   "session_id": "987fcdeb-51a2-43d7-89ab-123456789abc",
-  "audio_chunk": "data:audio/webm;base64,GkXfo59ChoEBQveBAULygQRC84EIQo..."
+  "audio_data": "data:audio/webm;base64,GkXfo59ChoEBQveBAULygQRC84EIQo..."
 }
 ```
 
 **リクエストパラメータ**:
 - `session_id`: セッションID
-- `audio_chunk`: Base64エンコードされた音声データ（WebM/Opus形式）
+- `audio_data`: Base64エンコードされた音声データ（WebM/Opus形式）
 
 **成功レスポンス (200 OK)**:
 ```json
@@ -835,35 +847,37 @@ Authorization: Token a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6
 1. トークン認証
 2. セッションの存在確認・アクティブ状態確認
 3. Base64デコード → 音声ファイル
-4. **Deepgram Realtime API**でSTT実行
+4. **OpenAI Whisper API**でSTT実行
 5. Redisキャッシュに追加: `APPEND session:{session_id}:text "{transcribed_text} "`
 6. 累積テキスト取得: `GET session:{session_id}:text`
 7. レスポンス返却
 
-**Deepgram統合例**:
+**OpenAI統合例**:
 ```python
-from deepgram import DeepgramClient, PrerecordedOptions
+from openai import OpenAI
 
 def transcribe_audio(audio_data):
-    """Deepgram APIで音声をテキスト化"""
-    deepgram = DeepgramClient(api_key=settings.DEEPGRAM_API_KEY)
+    """OpenAI Whisper APIで音声をテキスト化"""
+    client = OpenAI(api_key=settings.OPENAI_API_KEY)
 
-    options = PrerecordedOptions(
-        model="nova-2",
-        language="ja",
-        punctuate=True,
-        utterances=True
-    )
+    # 音声ファイルを一時保存
+    import tempfile
+    with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as temp_audio:
+        temp_audio.write(audio_data)
+        temp_audio_path = temp_audio.name
 
-    response = deepgram.listen.prerecorded.v("1").transcribe_file(
-        {"buffer": audio_data},
-        options
-    )
+    # Whisper APIで文字起こし
+    with open(temp_audio_path, "rb") as audio_file:
+        transcript = client.audio.transcriptions.create(
+            model="whisper-1",
+            file=audio_file,
+            language="ja"
+        )
 
-    transcript = response.results.channels[0].alternatives[0].transcript
-    confidence = response.results.channels[0].alternatives[0].confidence
+    # 一時ファイル削除
+    os.unlink(temp_audio_path)
 
-    return transcript, confidence
+    return transcript.text, 1.0  # confidenceは常に1.0を返す
 ```
 
 ---
@@ -906,7 +920,7 @@ Authorization: Token a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6
    patient_text = cache.get(f"session:{session_id}:text") or ""
    ```
 
-4. **LLMで並行処理実行**（OpenAI GPT-4）
+4. **LLMで並行処理実行**（OpenAI GPT-4o-mini）
    - 非批判的な応答生成
    - 52感情から最適な感情1つを選択
    - 感情選定理由の生成
@@ -1387,25 +1401,27 @@ class ConversationSessionSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'created_at']
 
 
-class AudioSessionSerializer(serializers.Serializer):
-    """音声セッション通信用"""
-
+class AudioChunkSerializer(serializers.Serializer):
+    """音声チャンクシリアライザ"""
+    
     session_id = serializers.UUIDField()
-    audio_chunk = serializers.CharField(help_text="Base64エンコードされた音声データ")
+    audio_data = serializers.CharField(help_text="Base64エンコードされた音声データ")
 
-    def validate_audio_chunk(self, value):
+    def validate_audio_data(self, value):
         """音声データのバリデーション"""
         import base64
 
-        # Base64形式チェック
+        # Data URL形式の場合、カンマ以降を取得
         if value.startswith('data:audio'):
-            # Data URLの場合、カンマ以降を取得
-            value = value.split(',')[1]
+            value = value.split(',', 1)[1] if ',' in value else value
 
         try:
-            base64.b64decode(value)
-        except Exception:
-            raise serializers.ValidationError("無効な音声データ形式です")
+            # Base64デコード確認
+            decoded = base64.b64decode(value)
+            if len(decoded) == 0:
+                raise serializers.ValidationError("音声データが空です")
+        except Exception as e:
+            raise serializers.ValidationError(f"無効な音声データ形式です: {str(e)}")
 
         return value
 ```
@@ -1558,7 +1574,7 @@ from .models import ConversationSession
 from .serializers import (
     ConversationSessionCreateSerializer,
     ConversationSessionSerializer,
-    AudioSessionSerializer
+    AudioChunkSerializer
 )
 from .services.conversation_pipeline import ConversationPipeline
 
@@ -1603,11 +1619,11 @@ class ConversationViewSet(viewsets.ViewSet):
 
         POST /api/v1/conversation/session/
         """
-        serializer = AudioSessionSerializer(data=request.data)
+        serializer = AudioChunkSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         session_id = serializer.validated_data['session_id']
-        audio_chunk = serializer.validated_data['audio_chunk']
+        audio_data = serializer.validated_data['audio_data']
 
         # セッション存在確認
         try:
@@ -1635,7 +1651,7 @@ class ConversationViewSet(viewsets.ViewSet):
         # STT処理
         from .services.stt_service import STTService
         stt_service = STTService()
-        transcribed_text, confidence = stt_service.transcribe(audio_chunk)
+        transcribed_text, confidence = stt_service.transcribe(audio_data)
 
         # Redisに追加
         cache_key = f"session:{session_id}:text"
@@ -1792,15 +1808,17 @@ class EmotionViewSet(viewsets.ReadOnlyModelViewSet):
 
 ```python
 import base64
+import os
+import tempfile
 from django.conf import settings
-from deepgram import DeepgramClient, PrerecordedOptions
+from openai import OpenAI
 
 
 class STTService:
-    """Deepgram STTサービス"""
+    """OpenAI Whisper STTサービス"""
 
     def __init__(self):
-        self.client = DeepgramClient(api_key=settings.DEEPGRAM_API_KEY)
+        self.client = OpenAI(api_key=settings.OPENAI_API_KEY)
 
     def transcribe(self, audio_chunk_base64):
         """音声をテキストに変換
@@ -1817,23 +1835,24 @@ class STTService:
 
         audio_data = base64.b64decode(audio_chunk_base64)
 
-        # Deepgram API呼び出し
-        options = PrerecordedOptions(
-            model="nova-2",
-            language="ja",
-            punctuate=True,
-            utterances=True
-        )
+        # 音声ファイルを一時保存
+        with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as temp_audio:
+            temp_audio.write(audio_data)
+            temp_audio_path = temp_audio.name
 
-        response = self.client.listen.prerecorded.v("1").transcribe_file(
-            {"buffer": audio_data},
-            options
-        )
+        try:
+            # OpenAI Whisper APIで文字起こし
+            with open(temp_audio_path, "rb") as audio_file:
+                transcript = self.client.audio.transcriptions.create(
+                    model="whisper-1",
+                    file=audio_file,
+                    language="ja"
+                )
 
-        transcript = response.results.channels[0].alternatives[0].transcript
-        confidence = response.results.channels[0].alternatives[0].confidence
-
-        return transcript, confidence
+            return transcript.text, 1.0
+        finally:
+            # 一時ファイル削除
+            os.unlink(temp_audio_path)
 ```
 
 **apps/conversations/services/llm_service.py**
@@ -1888,7 +1907,7 @@ JSON形式で返答してください:
 """
 
         response = self.client.chat.completions.create(
-            model="gpt-4",
+            model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": "あなたは共感的な医療AIアシスタントです。"},
                 {"role": "user", "content": prompt}
@@ -1904,6 +1923,8 @@ JSON形式で返答してください:
 **apps/conversations/services/tts_service.py**
 
 ```python
+import os
+import uuid
 import openai
 from django.conf import settings
 
@@ -1912,7 +1933,7 @@ class TTSService:
     """OpenAI TTSサービス"""
 
     def __init__(self):
-        self.client = openai.Client(api_key=settings.OPENAI_API_KEY)
+        self.client = openai.OpenAI(api_key=settings.OPENAI_API_KEY)
 
     def generate(self, text):
         """テキストを音声に変換
@@ -2137,11 +2158,10 @@ backend/
 │   │   ├── admin.py
 │   │   ├── services/              # ビジネスロジック
 │   │   │   ├── __init__.py
-│   │   │   ├── stt_service.py     # Deepgram STT
-│   │   │   ├── llm_service.py     # OpenAI LLM
+│   │   │   ├── stt_service.py     # OpenAI Whisper STT
 │   │   │   ├── tts_service.py     # OpenAI TTS
+│   │   │   ├── llm_service.py     # OpenAI GPT-4o-mini
 │   │   │   └── conversation_pipeline.py
-│   │   ├── consumers.py           # WebSocket
 │   │   └── tests.py
 │   │
 │   ├── emotions/                   # 感情マスター管理
@@ -2191,6 +2211,7 @@ uv sync
 # 3. 環境変数設定
 cp .env.example .env
 # .envを編集してAPI キー等を設定
+# 必須: OPENAI_API_KEY（STT/TTS/LLMで使用）
 
 # 4. データベース作成・接続確認
 # create_db.pyを使用してデータベースを作成
@@ -2204,16 +2225,52 @@ uv run python manage.py makemigrations
 uv run python manage.py migrate
 
 # 6. 感情マスターデータ投入
-uv run python manage.py loaddata emotions
+uv run python manage.py seed_emotions
 
 # 7. スーパーユーザー作成
 uv run python manage.py createsuperuser
 
 # 8. 開発サーバー起動
-uv run python manage.py runserver
+uv run python manage.py runserver 0.0.0.0:8000
 ```
 
-### 2. データベース接続確認
+### 2. 感情マスターデータの投入
+
+プルチックの52感情をデータベースに投入する方法:
+
+```bash
+# 感情データをシード（初回セットアップ時）
+uv run python manage.py seed_emotions
+
+# 実行結果例:
+# Created: joy (喜び)
+# Created: trust (信頼)
+# Created: fear (恐れ)
+# ...
+# Seeding complete: 52 created, 0 updated
+# Total emotions in database: 52
+
+# データが既に存在する場合は重複せずにスキップされます
+# 日本語名が変更されている場合は自動更新されます
+```
+
+**確認方法**:
+```bash
+# Djangoシェルで確認
+uv run python manage.py shell
+
+>>> from apps.emotions.models import Emotion
+>>> Emotion.objects.count()
+52
+>>> Emotion.objects.filter(name='joy').first()
+<Emotion: 喜び (joy)>
+>>> exit()
+
+# または、Django管理画面で確認
+# http://localhost:8000/admin/emotions/emotion/
+```
+
+### 3. データベース接続確認
 
 データベースの接続状態を確認する手順:
 

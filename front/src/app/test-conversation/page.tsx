@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
+const WS_BASE_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000';
 
 export default function TestConversationPage() {
   const router = useRouter();
@@ -18,12 +18,14 @@ export default function TestConversationPage() {
   const [logs, setLogs] = useState<string[]>([]);
   const [token, setToken] = useState('');
   const [patientName, setPatientName] = useState('');
+  const [wsConnected, setWsConnected] = useState(false);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
 
-  // Load from localStorage on mount
+  // Load from localStorage and setup WebSocket on mount
   useEffect(() => {
     const savedPatientId = localStorage.getItem('patientId');
     const savedToken = localStorage.getItem('token');
@@ -34,10 +36,143 @@ export default function TestConversationPage() {
       setToken(savedToken);
       setPatientName(savedName || '');
       addLog('認証情報を読み込みました');
+
+      // Setup WebSocket connection
+      setupWebSocket();
     } else {
       addLog('認証情報が見つかりません。ログインページに移動してください');
     }
+
+    // Cleanup WebSocket on unmount
+    return () => {
+      if (wsRef.current) {
+        wsRef.current.close();
+      }
+    };
   }, []);
+
+  const setupWebSocket = () => {
+    try {
+      const ws = new WebSocket(`${WS_BASE_URL}/ws/conversation/`);
+
+      ws.onopen = () => {
+        addLog('WebSocket接続が確立されました');
+        setWsConnected(true);
+      };
+
+      ws.onmessage = (event) => {
+        handleWebSocketMessage(event.data);
+      };
+
+      ws.onerror = (error) => {
+        addLog(`WebSocketエラー: ${error}`);
+        setWsConnected(false);
+      };
+
+      ws.onclose = () => {
+        addLog('WebSocket接続が切断されました');
+        setWsConnected(false);
+      };
+
+      wsRef.current = ws;
+    } catch (error) {
+      addLog(`WebSocket接続エラー: ${error}`);
+    }
+  };
+
+  const handleWebSocketMessage = (data: string) => {
+    try {
+      const message = JSON.parse(data);
+      const messageType = message.type;
+
+      addLog(`WebSocketメッセージ受信: ${messageType}`);
+
+      switch (messageType) {
+        case 'connection_established':
+          addLog(message.message);
+          break;
+
+        case 'session_started':
+          setSessionId(message.session_id);
+          addLog(`セッション開始: ${message.session_id}`);
+          // 自動的に録音を開始
+          setTimeout(() => {
+            startRecordingInternal(message.session_id);
+          }, 100);
+          break;
+
+        case 'audio_processed':
+          setTranscribedText(message.transcribed_text);
+          setAccumulatedText(message.accumulated_text);
+          addLog(`STT結果: ${message.transcribed_text} (信頼度: ${message.confidence})`);
+          break;
+
+        case 'session_ended':
+          console.log('session_ended message received:', message);
+          setAiResponse(message.ai_response_text);
+          setEmotion(message.emotion.name_ja || message.emotion.name);
+          setEmotionReason(message.emotion_reason);
+          addLog(`AI応答: ${message.ai_response_text}`);
+          addLog(`感情: ${message.emotion.name_ja} (${message.emotion.name})`);
+          addLog(`理由: ${message.emotion_reason}`);
+
+          // Play AI audio response automatically
+          console.log('Checking audio data...', {
+            hasAudioData: !!message.ai_audio_base64,
+            audioLength: message.ai_audio_base64?.length || 0,
+            audioRefExists: !!audioRef.current
+          });
+
+          if (message.ai_audio_base64 && message.ai_audio_base64.length > 0) {
+            addLog(`音声データ受信: ${message.ai_audio_base64.length} 文字 (base64)`);
+
+            try {
+              const audioBlob = base64ToBlob(message.ai_audio_base64, 'audio/mpeg');
+              console.log('Audio blob created:', audioBlob.size, 'bytes');
+              addLog(`音声Blob作成完了: ${audioBlob.size} bytes`);
+
+              const audioUrl = URL.createObjectURL(audioBlob);
+              console.log('Audio URL created:', audioUrl);
+
+              if (audioRef.current) {
+                audioRef.current.src = audioUrl;
+                addLog('音声ソース設定完了、再生開始...');
+
+                audioRef.current.play().then(() => {
+                  addLog('✓ AI音声を自動再生中...');
+                }).catch((err) => {
+                  addLog(`✗ 音声再生エラー: ${err.message}`);
+                  console.error('Audio play error:', err);
+                });
+              } else {
+                addLog('✗ エラー: audioRef.currentがnullです');
+              }
+            } catch (error) {
+              addLog(`✗ 音声処理エラー: ${error}`);
+              console.error('Audio processing error:', error);
+            }
+          } else {
+            addLog('✗ 警告: 音声データが空です');
+            console.log('Audio data is empty or missing');
+          }
+
+          // Clear session ID
+          setSessionId('');
+          addLog('セッション終了完了。新しいセッションを開始できます。');
+          break;
+
+        case 'error':
+          addLog(`エラー: ${message.message}`);
+          alert(`エラー: ${message.message}`);
+          break;
+
+        default:
+          addLog(`未知のメッセージタイプ: ${messageType}`);
+      }
+    } catch (error) {
+      addLog(`メッセージ処理エラー: ${error}`);
+    }
+  };
 
   const addLog = (message: string) => {
     const timestamp = new Date().toLocaleTimeString('ja-JP');
@@ -57,34 +192,31 @@ export default function TestConversationPage() {
       return;
     }
 
+    if (!wsConnected || !wsRef.current) {
+      alert('WebSocket接続がありません。ページをリロードしてください。');
+      return;
+    }
+
     try {
       addLog('セッション開始リクエスト送信中...');
-      const response = await fetch(`${API_BASE_URL}/conversation/start/`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Token ${token}`,
-        },
-        body: JSON.stringify({ patient_id: patientId }),
-      });
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(JSON.stringify(error));
-      }
+      // Send WebSocket message to start session
+      wsRef.current.send(JSON.stringify({
+        type: 'start_session',
+        patient_id: patientId
+      }));
 
-      const data = await response.json();
-      setSessionId(data.session_id);
-      addLog(`セッション開始: ${data.session_id}`);
-      alert(`セッション開始成功！\nSession ID: ${data.session_id}`);
+      // Recording will be started automatically after receiving session_started message
+
     } catch (error) {
       addLog(`エラー: ${error}`);
       alert(`セッション開始失敗: ${error}`);
     }
   };
 
-  const startRecording = async () => {
-    if (!sessionId) {
+  const startRecordingInternal = async (sessionIdParam?: string) => {
+    const currentSessionId = sessionIdParam || sessionId;
+    if (!currentSessionId) {
       alert('先にセッションを開始してください');
       return;
     }
@@ -136,31 +268,23 @@ export default function TestConversationPage() {
   };
 
   const sendAudioToBackend = async (base64Audio: string) => {
-    if (!sessionId || !token) return;
+    if (!sessionId) return;
+
+    if (!wsConnected || !wsRef.current) {
+      addLog('WebSocket接続がありません');
+      return;
+    }
 
     try {
       addLog('STT処理リクエスト送信中...');
-      const response = await fetch(`${API_BASE_URL}/conversation/session/`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Token ${token}`,
-        },
-        body: JSON.stringify({
-          session_id: sessionId,
-          audio_data: base64Audio,
-        }),
-      });
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(JSON.stringify(error));
-      }
+      // Send WebSocket message to process audio
+      wsRef.current.send(JSON.stringify({
+        type: 'process_audio',
+        session_id: sessionId,
+        audio_data: base64Audio
+      }));
 
-      const data = await response.json();
-      setTranscribedText(data.transcribed_text);
-      setAccumulatedText(data.accumulated_text);
-      addLog(`STT結果: ${data.transcribed_text} (信頼度: ${data.confidence})`);
     } catch (error) {
       addLog(`STT処理エラー: ${error}`);
       alert(`音声認識失敗: ${error}`);
@@ -168,55 +292,33 @@ export default function TestConversationPage() {
   };
 
   const endSession = async () => {
-    if (!sessionId || !token) {
+    if (!sessionId) {
       alert('先にセッションを開始してください');
       return;
     }
 
+    if (!wsConnected || !wsRef.current) {
+      alert('WebSocket接続がありません');
+      return;
+    }
+
+    // 録音中の場合は停止して、音声データを送信
+    if (isRecording && mediaRecorderRef.current) {
+      addLog('録音を停止しています...');
+      stopRecording();
+      // 録音停止処理とSTT処理が完了するまで待つ
+      await new Promise(resolve => setTimeout(resolve, 1500));
+    }
+
     try {
       addLog('セッション終了リクエスト送信中...');
-      const response = await fetch(`${API_BASE_URL}/sessions/${sessionId}/end/`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Token ${token}`,
-        },
-      });
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(JSON.stringify(error));
-      }
+      // Send WebSocket message to end session
+      wsRef.current.send(JSON.stringify({
+        type: 'end_session',
+        session_id: sessionId
+      }));
 
-      const data = await response.json();
-      setAiResponse(data.ai_response_text);
-      setEmotion(data.emotion.name_ja || data.emotion.name);
-      setEmotionReason(data.emotion_reason);
-      addLog(`AI応答: ${data.ai_response_text}`);
-      addLog(`感情: ${data.emotion.name_ja} (${data.emotion.name})`);
-      addLog(`理由: ${data.emotion_reason}`);
-
-      // Play AI audio response automatically
-      if (data.ai_audio_base64 && data.ai_audio_base64.length > 0) {
-        addLog(`音声データ受信: ${data.ai_audio_base64.length} bytes (base64)`);
-        const audioBlob = base64ToBlob(data.ai_audio_base64, 'audio/mpeg');
-        const audioUrl = URL.createObjectURL(audioBlob);
-        if (audioRef.current) {
-          audioRef.current.src = audioUrl;
-          audioRef.current.play().then(() => {
-            addLog('AI音声を自動再生中...');
-          }).catch((err) => {
-            addLog(`音声再生エラー: ${err.message}`);
-            console.error('Audio play error:', err);
-          });
-        }
-      } else {
-        addLog('警告: 音声データが空です');
-      }
-
-      // セッションIDをクリア（新しいセッション開始を可能にする）
-      setSessionId('');
-      addLog('セッション終了完了。新しいセッションを開始できます。');
     } catch (error) {
       addLog(`セッション終了エラー: ${error}`);
       alert(`セッション終了失敗: ${error}`);
@@ -315,26 +417,17 @@ export default function TestConversationPage() {
           <div className="grid grid-cols-2 gap-4">
             <button
               onClick={startSession}
-              disabled={!patientId || !token}
+              disabled={!patientId || !token || !!sessionId}
               className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
             >
-              1. セッション開始
-            </button>
-            <button
-              onClick={isRecording ? stopRecording : startRecording}
-              disabled={!sessionId}
-              className={`${
-                isRecording ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600'
-              } text-white px-4 py-2 rounded-md disabled:bg-gray-300 disabled:cursor-not-allowed`}
-            >
-              {isRecording ? '3. 録音停止 (STT実行)' : '2. 録音開始'}
+              {sessionId ? '録音中...' : '1. セッション開始（自動録音）'}
             </button>
             <button
               onClick={endSession}
-              disabled={!sessionId || !accumulatedText}
+              disabled={!sessionId}
               className="bg-purple-500 text-white px-4 py-2 rounded-md hover:bg-purple-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
             >
-              4. セッション終了 (LLM解析)
+              3. セッション終了 (LLM解析)
             </button>
             <button
               onClick={clearAll}
@@ -415,12 +508,11 @@ export default function TestConversationPage() {
           <h3 className="font-semibold text-blue-900 mb-2">使用方法:</h3>
           <ol className="list-decimal list-inside text-sm text-blue-800 space-y-1">
             <li>認証情報が自動で読み込まれます</li>
-            <li>「セッション開始」ボタンをクリック</li>
-            <li>「録音開始」ボタンをクリックして話す</li>
-            <li>「録音停止」ボタンをクリックしてSTT処理を実行</li>
-            <li>必要に応じて3-4を繰り返す</li>
+            <li>「セッション開始（録音開始）」ボタンをクリック - 自動的に録音が開始されます</li>
+            <li>話したいことを話す</li>
+            <li>「録音停止」ボタンをクリックしてSTT処理を実行（必要に応じて録音再開も可能）</li>
             <li>「セッション終了」ボタンをクリックしてLLM解析とTTS生成を実行</li>
-            <li>AI応答と感情分析結果を確認</li>
+            <li>AI応答と感情分析結果を確認、音声が自動再生されます</li>
           </ol>
           <div className="mt-4 pt-4 border-t border-blue-200">
             <p className="text-sm text-blue-800">

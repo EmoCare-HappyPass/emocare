@@ -19,7 +19,7 @@ SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-dev-key-change
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '*']
 
 
 # Application definition
@@ -186,12 +186,19 @@ CELERY_TIMEZONE = TIME_ZONE
 
 CHANNEL_LAYERS = {
     'default': {
-        'BACKEND': 'channels_redis.core.RedisChannelLayer',
-        'CONFIG': {
-            "hosts": [os.environ.get('REDIS_URL', 'redis://redis:6379/1')],
-        },
+        'BACKEND': 'channels.layers.InMemoryChannelLayer',
     },
 }
+
+# Production Redis configuration (uncomment when Redis is available)
+# CHANNEL_LAYERS = {
+#     'default': {
+#         'BACKEND': 'channels_redis.core.RedisChannelLayer',
+#         'CONFIG': {
+#             "hosts": [os.environ.get('REDIS_URL', 'redis://127.0.0.1:6379/1')],
+#         },
+#     },
+# }
 
 
 # Logging Configuration

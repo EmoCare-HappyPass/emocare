@@ -67,6 +67,7 @@ class DeepgramService:
     def text_to_speech(self, text):
         """
         テキストを音声に変換（TTS）
+        Note: Deepgram Aura doesn't support Japanese yet, so using OpenAI TTS instead
 
         Args:
             text (str): 音声化するテキスト
@@ -78,39 +79,26 @@ class DeepgramService:
             print("TTS Warning: Empty text provided")
             return b''
 
-        url = f"{self.base_url}/speak"
-        
-        headers = {
-            "Authorization": f"Token {self.api_key}",
-            "Content-Type": "application/json"
-        }
-        
-        params = {
-            "model": "aura-asteria-ja"  # Japanese voice model
-        }
-        
-        payload = {
-            "text": text
-        }
+        # Use OpenAI TTS API (supports Japanese)
+        from openai import OpenAI
 
         try:
-            print(f"TTS Request: {text[:50]}...")
-            response = requests.post(
-                url,
-                headers=headers,
-                params=params,
-                json=payload,
-                timeout=30
+            print(f"TTS Request (OpenAI): {text[:50]}...")
+            client = OpenAI(api_key=settings.OPENAI_API_KEY)
+
+            response = client.audio.speech.create(
+                model="tts-1",  # or "tts-1-hd" for higher quality
+                voice="nova",   # Options: alloy, echo, fable, onyx, nova, shimmer
+                input=text
             )
-            response.raise_for_status()
-            
-            audio_data = response.content
+
+            # Read binary audio data from response
+            audio_data = response.read()
             print(f"TTS Success: Received {len(audio_data)} bytes")
             return audio_data
-            
-        except requests.exceptions.RequestException as e:
-            print(f"Deepgram TTS Error: {e}")
-            if hasattr(e, 'response') and e.response is not None:
-                print(f"Response status: {e.response.status_code}")
-                print(f"Response body: {e.response.text[:200]}")
+
+        except Exception as e:
+            print(f"OpenAI TTS Error: {e}")
+            import traceback
+            traceback.print_exc()
             return b''
