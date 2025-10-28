@@ -6,6 +6,8 @@ import TimelineSlider from '@/components/TimelineSlider';
 import PlutchikWheel from '@/components/PlutchikWheel';
 import EmotionLegend from '@/components/EmotionLegend';
 import EmotionSummary from '@/components/EmotionSummary';
+import StatusChips from '@/components/StatusChips';
+import EmotionFilter from '@/components/EmotionFilter';
 import { usePatientEmotions } from '@/hooks/usePatientEmotions';
 import type { ConversationSession } from '@/types/conversation';
 import { PLUTCHIK_CORE } from '@/lib/plutchik';
@@ -61,10 +63,16 @@ export default function PatientEmotionsPage({ params }: PageProps) {
 
   // Select nearest N sessions to cursor (or default latest N)
   const baseData = devMode && devData ? devData : data;
+  const [filter, setFilter] = useState<'all' | string>('all');
+  const filtered = useMemo(() => {
+    if (!baseData) return [] as ConversationSession[];
+    if (filter === 'all') return baseData;
+    return baseData.filter((s) => (s.emotion_key || '').toLowerCase() === filter);
+  }, [baseData, filter]);
   const selected: ConversationSession[] = useMemo(() => {
-    if (!Array.isArray(baseData) || baseData.length === 0) return [];
+    if (!Array.isArray(filtered) || filtered.length === 0) return [];
     const N = query.limit ?? 10;
-    const sorted = Array.isArray(baseData) ? [...baseData].sort((a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime()) : [];
+    const sorted = Array.isArray(filtered) ? [...filtered].sort((a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime()) : [];
     if (!cursor) return sorted.slice(0, N);
     const withDist = sorted.map((s) => ({
       s,
@@ -72,7 +80,7 @@ export default function PatientEmotionsPage({ params }: PageProps) {
     }));
     withDist.sort((a, b) => a.d - b.d);
     return withDist.slice(0, N).map((x) => x.s);
-  }, [baseData, cursor, query.limit]);
+  }, [filtered, cursor, query.limit]);
 
   // Update URL when changing limit/order
   function updateParam(name: string, value: string) {
@@ -82,7 +90,7 @@ export default function PatientEmotionsPage({ params }: PageProps) {
   }
 
   return (
-    <div className="p-6 flex flex-col gap-6 text-white bg-black min-h-screen">
+    <div className="p-6 flex flex-col gap-6 text-white min-h-screen bg-gradient-to-b from-black to-zinc-900">
       <div className="flex items-center gap-3">
         <h1 className="text-xl font-semibold">患者の感情可視化（プルチック）</h1>
        <button
@@ -106,7 +114,10 @@ export default function PatientEmotionsPage({ params }: PageProps) {
         </button>
       </div>
 
-      <div className="flex flex-wrap gap-3 items-center">
+      <div className="flex flex-wrap gap-4 items-center">
+        <StatusChips sessions={filtered} />
+        <EmotionFilter sessions={baseData || []} value={filter} onChange={setFilter} />
+        <div className="h-4 w-px bg-white/20" />
         <label className="text-sm">並び順</label>
         <select
           className="border rounded px-2 py-1 text-sm bg-zinc-900 border-zinc-600 text-white"

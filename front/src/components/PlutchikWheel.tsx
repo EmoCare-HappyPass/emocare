@@ -101,6 +101,19 @@ export default function PlutchikWheel({ sessions }: PlutchikWheelProps) {
   return (
     <div className="relative" style={{ width: SIZE, height: SIZE }}>
       <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`}>
+        <defs>
+          <filter id="dropShadow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur in="SourceAlpha" stdDeviation="2" />
+            <feOffset dx="0" dy="1" result="offsetblur" />
+            <feComponentTransfer>
+              <feFuncA type="linear" slope="0.25" />
+            </feComponentTransfer>
+            <feMerge>
+              <feMergeNode />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
         {/* Base ring background */}
         <circle cx={CX} cy={CY} r={OUTER2_R} fill="#f8fafc" stroke="#e2e8f0" />
         <circle cx={CX} cy={CY} r={INNER_R} fill="white" stroke="#e2e8f0" />
@@ -113,7 +126,7 @@ export default function PlutchikWheel({ sessions }: PlutchikWheelProps) {
             <path
               key={key}
               d={d}
-              fill={info.color}
+              fill={`url(#grad-${key})`}
               opacity={active ? 0.95 : 0.35}
               stroke={active ? '#111827' : 'white'}
               strokeWidth={active ? 2 : 1}
@@ -121,6 +134,14 @@ export default function PlutchikWheel({ sessions }: PlutchikWheelProps) {
             />
           );
         })}
+
+        {/* simple radial gradients per wedge to add depth */}
+        {wedges.map(({ key, info }) => (
+          <radialGradient id={`grad-${key}`} key={`grad-${key}`} cx="50%" cy="50%" r="75%">
+            <stop offset="0%" stopColor={shadeColor(info.color, 0.25)} />
+            <stop offset="100%" stopColor={info.color} />
+          </radialGradient>
+        ))}
 
         {/* Sub-emotion ring split into 3 radial bands per primary */}
         {wedges.map(({ key, info, start, end }) => {
@@ -212,6 +233,7 @@ export default function PlutchikWheel({ sessions }: PlutchikWheelProps) {
                 }
               }}
               style={{ transition: 'r 200ms ease, opacity 200ms ease' }}
+              filter="url(#dropShadow)"
             />
           );
         })}
