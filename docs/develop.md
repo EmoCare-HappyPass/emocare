@@ -2231,7 +2231,9 @@ uv run python manage.py seed_emotions
 uv run python manage.py createsuperuser
 
 # 8. 開発サーバー起動
-uv run python manage.py runserver 0.0.0.0:8000
+
+```
+uv run daphne -b 0.0.0.0 -p 8000 config.asgi:application
 ```
 
 ### 2. 感情マスターデータの投入
@@ -2268,6 +2270,7 @@ uv run python manage.py shell
 
 # または、Django管理画面で確認
 # http://localhost:8000/admin/emotions/emotion/
+
 ```
 
 ### 3. データベース接続確認
