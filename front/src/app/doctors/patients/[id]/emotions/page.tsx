@@ -1,5 +1,5 @@
 "use client";
-
+import { use } from 'react'; 
 import { useMemo, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import TimelineSlider from '@/components/TimelineSlider';
@@ -8,10 +8,10 @@ import EmotionLegend from '@/components/EmotionLegend';
 import { usePatientEmotions } from '@/hooks/usePatientEmotions';
 import type { ConversationSession } from '@/types/conversation';
 
-interface PageProps { params: { id: string } }
+interface PageProps { params: Promise<{ id: string }> }
 
 export default function PatientEmotionsPage({ params }: PageProps) {
-  const { id } = params;
+  const { id } = use(params);
   const search = useSearchParams();
   const router = useRouter();
 
@@ -28,9 +28,9 @@ export default function PatientEmotionsPage({ params }: PageProps) {
 
   // Select nearest N sessions to cursor (or default latest N)
   const selected: ConversationSession[] = useMemo(() => {
-    if (!data || data.length === 0) return [];
+    if (!Array.isArray(data) || data.length === 0) return [];
     const N = query.limit ?? 10;
-    const sorted = [...data].sort((a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime());
+    const sorted = Array.isArray(data) ? [...data].sort((a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime()) : [];
     if (!cursor) return sorted.slice(0, N);
     const withDist = sorted.map((s) => ({
       s,

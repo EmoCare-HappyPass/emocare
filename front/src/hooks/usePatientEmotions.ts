@@ -6,7 +6,7 @@ import type { ConversationSession, EmotionsQuery } from '../types/conversation';
 
 export function usePatientEmotions(patientId: string, initial: EmotionsQuery = {}) {
   const [query, setQuery] = useState<EmotionsQuery>({ order: 'desc', limit: 50, ...initial });
-  const [data, setData] = useState<ConversationSession[] | null>(null);
+  const [data, setData] = useState<ConversationSession[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -40,7 +40,8 @@ export function usePatientEmotions(patientId: string, initial: EmotionsQuery = {
   }, [patientId, query.from, query.to, query.limit, query.order]);
 
   const range = useMemo(() => {
-    if (!data || data.length === 0) return { min: null as number | null, max: null as number | null };
+    if (!Array.isArray(data) || data.length === 0) return { min: null as number | null, max: null as number | null };
+    if (!Array.isArray(data)) return { min: null as number | null, max: null as number | null };
     const times = data.map((d) => new Date(d.started_at).getTime());
     return { min: Math.min(...times), max: Math.max(...times) };
   }, [data]);
