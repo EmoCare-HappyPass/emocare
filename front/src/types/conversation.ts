@@ -17,6 +17,8 @@ export interface ConversationSession {
   emotion_key: string | null;
   emotion_reason: string | null;
   duration?: number | null;
+  // Optional: 0..1 intensity score for visualization
+  emotion_score?: number | null;
 }
 
 export interface EmotionsQuery {
@@ -25,4 +27,3 @@ export interface EmotionsQuery {
   limit?: number; // 1..500
   order?: 'asc' | 'desc';
 }
-

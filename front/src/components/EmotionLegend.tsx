@@ -10,14 +10,13 @@ export default function EmotionLegend() {
     { label: '期待 (anticipation)', color: '#F4A259' },
   ];
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-white">
       {items.map((i) => (
         <div key={i.label} className="flex items-center gap-2">
           <span className="inline-block w-3 h-3 rounded-full" style={{ background: i.color }} />
-          <span className="text-xs text-gray-700">{i.label}</span>
+          <span className="text-xs text-white">{i.label}</span>
         </div>
       ))}
     </div>
   );
 }
-

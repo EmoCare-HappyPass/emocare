@@ -16,8 +16,8 @@ export function usePatientEmotions(patientId: string, initial: EmotionsQuery = {
       setLoading(true);
       setError(null);
       try {
-        const res = await apiGet<ConversationSession[]>(
-          '/sessions',
+        const res = await apiGet<unknown>(
+          '/sessions/',
           {
             patient_id: patientId,
             from: query.from,
@@ -26,7 +26,13 @@ export function usePatientEmotions(patientId: string, initial: EmotionsQuery = {
             order: query.order ?? 'desc',
           },
         );
-        if (!cancelled) setData(res);
+        let arr: ConversationSession[] = [];
+        if (Array.isArray(res)) {
+          arr = res as ConversationSession[];
+        } else if (res && typeof res === 'object' && Array.isArray((res as any).results)) {
+          arr = (res as any).results as ConversationSession[];
+        }
+        if (!cancelled) setData(arr);
       } catch (e: any) {
         if (!cancelled) setError(e?.message || 'Failed to fetch');
       } finally {

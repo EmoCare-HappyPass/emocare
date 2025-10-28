@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import TimelineSlider from '@/components/TimelineSlider';
 import PlutchikWheel from '@/components/PlutchikWheel';
 import EmotionLegend from '@/components/EmotionLegend';
+import EmotionSummary from '@/components/EmotionSummary';
 import { usePatientEmotions } from '@/hooks/usePatientEmotions';
 import type { ConversationSession } from '@/types/conversation';
 import { PLUTCHIK_CORE } from '@/lib/plutchik';
@@ -52,6 +53,7 @@ export default function PatientEmotionsPage({ params }: PageProps) {
         emotion_key: key,
         emotion_reason: `ダミー理由 ${i}: ${info.labelJa} と判断。`,
         duration: 60,
+        emotion_score: Math.round(((i % 10) / 10 + Math.random() * 0.3) * 100) / 100,
       });
     }
     return out;
@@ -80,15 +82,15 @@ export default function PatientEmotionsPage({ params }: PageProps) {
   }
 
   return (
-    <div className="p-6 flex flex-col gap-6">
+    <div className="p-6 flex flex-col gap-6 text-white bg-black min-h-screen">
       <div className="flex items-center gap-3">
         <h1 className="text-xl font-semibold">患者の感情可視化（プルチック）</h1>
        <button
           type="button"
-          className={`text-xs text-black px-2 py-1 rounded border ${
+          className={`text-xs px-2 py-1 rounded border ${
             devMode
-              ? 'bg-yellow-100 border-yellow-300 text-black font-semibold'
-              : 'bg-gray-50 border-gray-300'
+              ? 'bg-yellow-500/30 border-yellow-400 text-white'
+              : 'bg-zinc-800 border-zinc-600 text-white'
           }`}
           onClick={() => {
             if (!devMode) {
@@ -107,7 +109,7 @@ export default function PatientEmotionsPage({ params }: PageProps) {
       <div className="flex flex-wrap gap-3 items-center">
         <label className="text-sm">並び順</label>
         <select
-          className="border rounded px-2 py-1 text-sm"
+          className="border rounded px-2 py-1 text-sm bg-zinc-900 border-zinc-600 text-white"
           value={query.order ?? 'desc'}
           onChange={(e) => {
             const v = e.target.value as 'asc' | 'desc';
@@ -115,13 +117,13 @@ export default function PatientEmotionsPage({ params }: PageProps) {
             updateParam('order', v);
           }}
         >
-          <option value="desc">新しい順</option>
-          <option value="asc">古い順</option>
+          <option className="bg-zinc-900" value="desc">新しい順</option>
+          <option className="bg-zinc-900" value="asc">古い順</option>
         </select>
 
         <label className="text-sm">件数</label>
         <select
-          className="border rounded px-2 py-1 text-sm"
+          className="border rounded px-2 py-1 text-sm bg-zinc-900 border-zinc-600 text-white"
           value={String(query.limit ?? 10)}
           onChange={(e) => {
             const v = Number(e.target.value || 10);
@@ -130,7 +132,7 @@ export default function PatientEmotionsPage({ params }: PageProps) {
           }}
         >
           {[10, 25, 50].map((n) => (
-            <option key={n} value={n}>{n}</option>
+            <option className="bg-zinc-900" key={n} value={n}>{n}</option>
           ))}
         </select>
       </div>
@@ -144,23 +146,26 @@ export default function PatientEmotionsPage({ params }: PageProps) {
           disabled={loading}
         />
 
-        {loading && <div className="text-sm text-gray-600">読み込み中...</div>}
-        {error && <div className="text-sm text-red-600">{error}</div>}
+        {loading && <div className="text-sm">読み込み中...</div>}
+        {error && <div className="text-sm">{error}</div>}
         {!loading && !error && !devMode && data && data.length === 0 && (
-          <div className="text-sm text-gray-600">データがありません</div>
+          <div className="text-sm">データがありません</div>
         )}
       </div>
 
-      {selected.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] gap-6 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-8 items-start">
+        <div className="flex flex-col gap-6">
           <PlutchikWheel sessions={selected} />
-
           <div className="flex flex-col gap-4">
             <h2 className="font-medium">凡例</h2>
             <EmotionLegend />
           </div>
         </div>
-      )}
+        <div className="flex flex-col gap-6">
+          <EmotionSummary sessions={baseData || []} title="感情サマリー（取得範囲）" />
+          <EmotionSummary sessions={selected} title="感情サマリー（選択N件）" />
+        </div>
+      </div>
     </div>
   );
 }

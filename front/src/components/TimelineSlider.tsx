@@ -24,22 +24,22 @@ export default function TimelineSlider({ min, max, value, onChange, disabled }: 
 
   if (min == null || max == null) {
     return (
-      <div className="w-full text-sm text-gray-500">データがありません</div>
+      <div className="w-full text-sm text-white">データがありません</div>
     );
   }
 
   return (
-    <div className="w-full flex flex-col gap-2">
+    <div className="w-full flex flex-col gap-2 text-white">
       <input
         type="range"
         min={min}
         max={max}
         value={clamped ?? min}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full"
+        className="w-full accent-white"
         disabled={disabled}
       />
-      <div className="flex justify-between text-xs text-gray-600">
+      <div className="flex justify-between text-xs">
         <span>{fmt(min)}</span>
         <span>{fmt(clamped)}</span>
         <span>{fmt(max)}</span>
@@ -47,4 +47,3 @@ export default function TimelineSlider({ min, max, value, onChange, disabled }: 
     </div>
   );
 }
-
