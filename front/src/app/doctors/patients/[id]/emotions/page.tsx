@@ -2,11 +2,11 @@
 
 import { useMemo, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import TimelineSlider from '../../../../../../components/TimelineSlider';
-import PlutchikWheel from '../../../../../../components/PlutchikWheel';
-import EmotionLegend from '../../../../../../components/EmotionLegend';
-import { usePatientEmotions } from '../../../../../../hooks/usePatientEmotions';
-import type { ConversationSession } from '../../../../../../types/conversation';
+import TimelineSlider from '@/components/TimelineSlider';
+import PlutchikWheel from '@/components/PlutchikWheel';
+import EmotionLegend from '@/components/EmotionLegend';
+import { usePatientEmotions } from '@/hooks/usePatientEmotions';
+import type { ConversationSession } from '@/types/conversation';
 
 interface PageProps { params: { id: string } }
 
