@@ -34,3 +34,7 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # Logging
 LOGGING['root']['level'] = 'DEBUG'
 LOGGING['loggers']['django']['level'] = 'DEBUG'
+
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",  # フロントエンドのURLを許可
+]
