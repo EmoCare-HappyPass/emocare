@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link'; // 戻るボタン用に Link をインポート
+import { ArrowLeft } from 'lucide-react'; // 戻るボタン用にアイコンをインポート
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
 
@@ -46,8 +48,8 @@ export default function LoginPage() {
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.non_field_errors?.[0] || error.detail || '認証に失敗しました');
+        const errorData = await response.json();
+        throw new Error(errorData.non_field_errors?.[0] || errorData.detail || '認証に失敗しました');
       }
 
       const data = await response.json();
@@ -74,29 +76,31 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-white flex items-center justify-center p-4">
       <div className="max-w-md w-full">
-        <div className="bg-white rounded-2xl shadow-xl p-8">
+        <div className="bg-white rounded-3xl shadow-xl p-8 md:p-12">
           <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-gray-800 mb-2">
-              EmoCare
-            </h1>
-            <p className="text-gray-600">
+            <Link href="/">
+              <h1 className="font-heading text-5xl font-bold text-gray-800 mb-2 transition-opacity hover:opacity-80">
+                EmoCare
+              </h1>
+            </Link>
+            <p className="text-gray-600 text-lg">
               {isLogin ? 'ログイン' : '新規登録'}
             </p>
           </div>
 
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-4 text-sm">
               {error}
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-5">
             {!isLogin && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  名前 <span className="text-red-500">*</span>
+                <label className="block text-sm font-medium text-gray-700 mb-2 ml-4">
+                  名前 <span className="text-primary">*</span>
                 </label>
                 <input
                   type="text"
@@ -104,15 +108,15 @@ export default function LoginPage() {
                   value={formData.name}
                   onChange={handleChange}
                   required={!isLogin}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                  className="w-full px-5 py-3 border border-gray-300 rounded-full focus:ring-2 focus:ring-primary focus:border-transparent text-gray-900"
                   placeholder="山田太郎"
                 />
               </div>
             )}
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                メールアドレス <span className="text-red-500">*</span>
+              <label className="block text-sm font-medium text-gray-700 mb-2 ml-4">
+                メールアドレス <span className="text-primary">*</span>
               </label>
               <input
                 type="email"
@@ -120,14 +124,14 @@ export default function LoginPage() {
                 value={formData.email}
                 onChange={handleChange}
                 required
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                className="w-full px-5 py-3 border border-gray-300 rounded-full focus:ring-2 focus:ring-primary focus:border-transparent text-gray-900"
                 placeholder="example@mail.com"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                パスワード <span className="text-red-500">*</span>
+              <label className="block text-sm font-medium text-gray-700 mb-2 ml-4">
+                パスワード <span className="text-primary">*</span>
               </label>
               <input
                 type="password"
@@ -136,7 +140,7 @@ export default function LoginPage() {
                 onChange={handleChange}
                 required
                 minLength={8}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                className="w-full px-5 py-3 border border-gray-300 rounded-full focus:ring-2 focus:ring-primary focus:border-transparent text-gray-900"
                 placeholder="8文字以上"
               />
             </div>
@@ -144,7 +148,7 @@ export default function LoginPage() {
             {!isLogin && (
               <>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2 ml-4">
                     生年月日
                   </label>
                   <input
@@ -152,19 +156,19 @@ export default function LoginPage() {
                     name="birth_date"
                     value={formData.birth_date}
                     onChange={handleChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                    className="w-full px-5 py-3 border border-gray-300 rounded-full focus:ring-2 focus:ring-primary focus:border-transparent text-gray-900"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2 ml-4">
                     性別
                   </label>
                   <select
                     name="gender"
                     value={formData.gender}
                     onChange={handleChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                    className="w-full px-5 py-3 border border-gray-300 rounded-full focus:ring-2 focus:ring-primary focus:border-transparent text-gray-900 appearance-none"
                   >
                     <option value="">選択してください</option>
                     <option value="male">男性</option>
@@ -174,7 +178,7 @@ export default function LoginPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2 ml-4">
                     入院日
                   </label>
                   <input
@@ -182,7 +186,7 @@ export default function LoginPage() {
                     name="admission_date"
                     value={formData.admission_date}
                     onChange={handleChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                    className="w-full px-5 py-3 border border-gray-300 rounded-full focus:ring-2 focus:ring-primary focus:border-transparent text-gray-900"
                   />
                 </div>
               </>
@@ -191,7 +195,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+              className="w-full bg-primary text-white py-4 rounded-full font-bold text-lg hover:bg-red-500 transition-transform transform hover:scale-105 shadow-lg disabled:bg-gray-400 disabled:cursor-not-allowed disabled:transform-none"
             >
               {loading ? '処理中...' : isLogin ? 'ログイン' : '登録'}
             </button>
@@ -203,29 +207,24 @@ export default function LoginPage() {
                 setIsLogin(!isLogin);
                 setError('');
               }}
-              className="text-blue-600 hover:text-blue-700 text-sm font-medium"
+              className="text-primary hover:text-red-500 text-sm font-medium"
             >
               {isLogin ? '新規登録はこちら' : 'ログインはこちら'}
             </button>
           </div>
-
-          {isLogin && (
-            <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-              <p className="text-sm text-gray-600 mb-2">
-                <strong>テストアカウント:</strong>
-              </p>
-              <p className="text-xs text-gray-500">
-                Email: test@example.com<br />
-                Password: password123
-              </p>
-            </div>
-          )}
         </div>
 
-        <div className="mt-6 text-center">
-          <p className="text-sm text-gray-600">
-            登録後、自動的に会話テストページに移動します
-          </p>
+        <div className="mt-8 text-center">
+          <Link
+            href="/"
+            className="text-gray-600 hover:text-primary transition-colors flex items-center gap-2 group justify-center"
+          >
+            <ArrowLeft
+              size={18}
+              className="transition-transform group-hover:-translate-x-1"
+            />
+            スタート画面に戻る
+          </Link>
         </div>
       </div>
     </div>
