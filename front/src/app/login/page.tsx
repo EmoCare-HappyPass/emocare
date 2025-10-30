@@ -2,8 +2,8 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link'; // 戻るボタン用に Link をインポート
-import { ArrowLeft } from 'lucide-react'; // 戻るボタン用にアイコンをインポート
+import Link from 'next/link';
+import { ArrowLeft } from 'lucide-react';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
 
@@ -27,7 +27,9 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
+      // ログインと登録でエンドポイントを切り替え
       const endpoint = isLogin ? '/patients/login/' : '/patients/register/';
+      
       const payload = isLogin
         ? { email: formData.email, password: formData.password }
         : {
@@ -49,17 +51,17 @@ export default function LoginPage() {
 
       if (!response.ok) {
         const errorData = await response.json();
+        // Djangoからのエラー詳細 (detail) を表示
         throw new Error(errorData.non_field_errors?.[0] || errorData.detail || '認証に失敗しました');
       }
 
       const data = await response.json();
       
-      // Save to localStorage
       localStorage.setItem('patientId', data.id);
       localStorage.setItem('token', data.token);
       localStorage.setItem('patientName', data.name);
 
-      // Redirect to test conversation page
+      // ログイン成功後、/test-conversation にリダイレクト
       router.push('/test-conversation');
     } catch (err: any) {
       setError(err.message);
@@ -147,48 +149,7 @@ export default function LoginPage() {
 
             {!isLogin && (
               <>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2 ml-4">
-                    生年月日
-                  </label>
-                  <input
-                    type="date"
-                    name="birth_date"
-                    value={formData.birth_date}
-                    onChange={handleChange}
-                    className="w-full px-5 py-3 border border-gray-300 rounded-full focus:ring-2 focus:ring-primary focus:border-transparent text-gray-900"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2 ml-4">
-                    性別
-                  </label>
-                  <select
-                    name="gender"
-                    value={formData.gender}
-                    onChange={handleChange}
-                    className="w-full px-5 py-3 border border-gray-300 rounded-full focus:ring-2 focus:ring-primary focus:border-transparent text-gray-900 appearance-none"
-                  >
-                    <option value="">選択してください</option>
-                    <option value="male">男性</option>
-                    <option value="female">女性</option>
-                    <option value="other">その他</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2 ml-4">
-                    入院日
-                  </label>
-                  <input
-                    type="date"
-                    name="admission_date"
-                    value={formData.admission_date}
-                    onChange={handleChange}
-                    className="w-full px-5 py-3 border border-gray-300 rounded-full focus:ring-2 focus:ring-primary focus:border-transparent text-gray-900"
-                  />
-                </div>
+                {/* 登録時のみ表示する他のフィールド */}
               </>
             )}
 
@@ -212,6 +173,22 @@ export default function LoginPage() {
               {isLogin ? '新規登録はこちら' : 'ログインはこちら'}
             </button>
           </div>
+
+          {/* テストアカウント情報 */}
+          {isLogin && (
+            <div className="mt-6 p-4 bg-gray-100 rounded-2xl">
+              <p className="text-sm text-gray-700 font-bold mb-2 text-center">
+                テストアカウント
+              </p>
+              <p className="text-xs text-gray-600 text-center">
+                Email: test@example.com<br />
+                Password: password123
+              </p>
+              <p className="text-xs text-gray-500 mt-2 text-center">
+                (※バックエンドでの事前登録が必要です)
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="mt-8 text-center">

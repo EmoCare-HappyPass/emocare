@@ -1,246 +1,89 @@
-'use client';
+import Image from "next/image";
+import Link from "next/link"; // Next.js の Link をインポート
+import { Mic, Bot, BrainCircuit } from "lucide-react";
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { ArrowLeft } from 'lucide-react';
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
-
-export default function LoginPage() {
-  const router = useRouter();
-  const [isLogin, setIsLogin] = useState(true);
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    password: '',
-    birth_date: '',
-    gender: '',
-    admission_date: '',
-  });
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
-
-    try {
-      const endpoint = isLogin ? '/patients/login/' : '/patients/register/';
-      const payload = isLogin
-        ? { email: formData.email, password: formData.password }
-        : {
-            name: formData.name,
-            email: formData.email,
-            password: formData.password,
-            birth_date: formData.birth_date || null,
-            gender: formData.gender || null,
-            admission_date: formData.admission_date || null,
-          };
-
-      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.non_field_errors?.[0] || errorData.detail || '認証に失敗しました');
-      }
-
-      const data = await response.json();
-      
-      localStorage.setItem('patientId', data.id);
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('patientName', data.name);
-
-      router.push('/test-conversation');
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
-  };
-
+export default function Home() {
   return (
-    <div className="min-h-screen bg-white flex items-center justify-center p-4">
-      <div className="max-w-md w-full">
-        <div className="bg-white rounded-3xl shadow-xl p-8 md:p-12">
-          <div className="text-center mb-8">
-            <Link href="/">
-              <h1 className="font-heading text-5xl font-bold text-gray-800 mb-2 transition-opacity hover:opacity-80">
-                EmoCare
-              </h1>
+    <div className="flex flex-col items-center justify-center min-h-screen bg-white p-6 md:p-12">
+      <main className="flex flex-col items-center w-full max-w-4xl gap-12">
+        {/* ヘッダー: EmoCare */}
+        <header className="text-center">
+          <h1 className="font-heading text-6xl md:text-7xl font-bold text-gray-800">
+            EmoCare
+          </h1>
+          <p className="text-lg text-gray-600 mt-2">
+            AI感情可視化・共感ケア支援システム
+          </p>
+        </header>
+
+        {/* メインカード */}
+        <section className="bg-white shadow-xl rounded-3xl p-8 md:p-12 w-full max-w-lg text-center">
+          <h2 className="text-3xl font-bold text-gray-800 mb-4">ようこそ</h2>
+          <p className="text-gray-600 leading-relaxed mb-8">
+            患者の感情を可視化し、適切なケアを提供するためのシステムです。
+            <br />
+            音声で会話し、AIが共感的に応答します。
+          </p>
+
+          <div className="flex flex-col gap-4">
+            {/* プライマリボタン (Link に変更) */}
+            <Link
+              href="/login" // 遷移先を /login に指定
+              className="bg-primary text-white font-bold py-4 px-6 rounded-full text-lg
+                         transition-transform transform hover:scale-105 hover:bg-red-500 shadow-lg"
+            >
+              ログイン / 新規登録
             </Link>
-            <p className="text-gray-600 text-lg">
-              {isLogin ? 'ログイン' : '新規登録'}
-            </p>
-          </div>
-
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-4 text-sm">
-              {error}
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {!isLogin && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2 ml-4">
-                  名前 <span className="text-primary">*</span>
-                </label>
-                <input
-                  type="text"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleChange}
-                  required={!isLogin}
-                  className="w-full px-5 py-3 border border-gray-300 rounded-full focus:ring-2 focus:ring-primary focus:border-transparent text-gray-900"
-                  placeholder="山田太郎"
-                />
-              </div>
-            )}
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2 ml-4">
-                メールアドレス <span className="text-primary">*</span>
-              </label>
-              <input
-                type="email"
-                name="email"
-                value={formData.email}
-                onChange={handleChange}
-                required
-                className="w-full px-5 py-3 border border-gray-300 rounded-full focus:ring-2 focus:ring-primary focus:border-transparent text-gray-900"
-                placeholder="example@mail.com"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2 ml-4">
-                パスワード <span className="text-primary">*</span>
-              </label>
-              <input
-                type="password"
-                name="password"
-                value={formData.password}
-                onChange={handleChange}
-                required
-                minLength={8}
-                className="w-full px-5 py-3 border border-gray-300 rounded-full focus:ring-2 focus:ring-primary focus:border-transparent text-gray-900"
-                placeholder="8文字以上"
-              />
-            </div>
-
-            {!isLogin && (
-              <>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2 ml-4">
-                    生年月日
-                  </label>
-                  <input
-                    type="date"
-                    name="birth_date"
-                    value={formData.birth_date}
-                    onChange={handleChange}
-                    className="w-full px-5 py-3 border border-gray-300 rounded-full focus:ring-2 focus:ring-primary focus:border-transparent text-gray-900"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2 ml-4">
-                    性別
-                  </label>
-                  <select
-                    name="gender"
-                    value={formData.gender}
-                    onChange={handleChange}
-                    className="w-full px-5 py-3 border border-gray-300 rounded-full focus:ring-2 focus:ring-primary focus:border-transparent text-gray-900 appearance-none"
-                  >
-                    <option value="">選択してください</option>
-                    <option value="male">男性</option>
-                    <option value="female">女性</option>
-                    <option value="other">その他</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2 ml-4">
-                    入院日
-                  </label>
-                  <input
-                    type="date"
-                    name="admission_date"
-                    value={formData.admission_date}
-                    onChange={handleChange}
-                    className="w-full px-5 py-3 border border-gray-300 rounded-full focus:ring-2 focus:ring-primary focus:border-transparent text-gray-900"
-                  />
-                </div>
-              </>
-            )}
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-primary text-white py-4 rounded-full font-bold text-lg hover:bg-red-500 transition-transform transform hover:scale-105 shadow-lg disabled:bg-gray-400 disabled:cursor-not-allowed disabled:transform-none"
+            
+            {/* セカンダリボタン (Link に変更) */}
+            <Link
+              href="#" // 遷移先を適切に設定してください (例: /test)
+              className="bg-gray-100 text-gray-700 font-bold py-4 px-6 rounded-full text-lg
+                         transition-transform transform hover:scale-105 hover:bg-gray-200"
             >
-              {loading ? '処理中...' : isLogin ? 'ログイン' : '登録'}
-            </button>
-          </form>
-
-          <div className="mt-6 text-center">
-            <button
-              onClick={() => {
-                setIsLogin(!isLogin);
-                setError('');
-              }}
-              className="text-primary hover:text-red-500 text-sm font-medium"
-            >
-              {isLogin ? '新規登録はこちら' : 'ログインはこちら'}
-            </button>
+              会話テストページ
+            </Link>
           </div>
+        </section>
 
-          {/* 修正点: テストアカウント情報ブロックを再追加 + スタイリング */}
-          {isLogin && (
-            <div className="mt-6 p-4 bg-gray-100 rounded-2xl">
-              <p className="text-sm text-gray-700 font-bold mb-2 text-center">
-                テストアカウント
-              </p>
-              <p className="text-xs text-gray-600 text-center">
-                Email: test@example.com<br />
-                Password: password123
-              </p>
-              <p className="text-xs text-gray-500 mt-2 text-center">
-                (※上記curlコマンドでの事前登録が必要です)
-              </p>
-            </div>
-          )}
-        </div>
+        {/* 機能紹介カード */}
+        <section className="grid grid-cols-1 md:grid-cols-3 gap-8 w-full mt-8">
+          <FeatureCard
+            icon={<Mic size={40} className="text-primary" />}
+            title="音声会話"
+            description="音声で自然に話しかけることができます"
+          />
+          <FeatureCard
+            icon={<Bot size={40} className="text-primary" />}
+            title="AI応答"
+            description="共感的で非批判的な応答を生成します"
+          />
+          <FeatureCard
+            icon={<BrainCircuit size={40} className="text-primary" />}
+            title="感情分析"
+            description="52種類の感情から適切な感情を判定します"
+          />
+        </section>
+      </main>
+    </div>
+  );
+}
 
-        <div className="mt-8 text-center">
-          <Link
-            href="/"
-            className="text-gray-600 hover:text-primary transition-colors flex items-center gap-2 group justify-center"
-          >
-            <ArrowLeft
-              size={18}
-              className="transition-transform group-hover:-translate-x-1"
-            />
-            スタート画面に戻る
-          </Link>
-        </div>
-      </div>
+// 機能カードコンポーネント
+function FeatureCard({
+  icon,
+  title,
+  description,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="bg-white shadow-lg rounded-2xl p-8 flex flex-col items-center text-center transition-transform transform hover:-translate-y-2">
+      <div className="mb-4">{icon}</div>
+      <h3 className="text-xl font-bold text-gray-800 mb-2">{title}</h3>
+      <p className="text-gray-600">{description}</p>
     </div>
   );
 }
