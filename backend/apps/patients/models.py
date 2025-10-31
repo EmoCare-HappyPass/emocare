@@ -62,6 +62,16 @@ class Patient(UUIDModel, TimeStampedModel):
         verbose_name = '患者'
         verbose_name_plural = '患者'
 
+    @property
+    def is_authenticated(self):
+        """常に認証済みとして扱う（Django User互換性）"""
+        return True
+
+    @property
+    def is_anonymous(self):
+        """匿名ユーザーではない（Django User互換性）"""
+        return False
+
     def set_password(self, raw_password):
         """パスワードをハッシュ化して保存
 

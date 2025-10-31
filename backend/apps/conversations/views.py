@@ -2,18 +2,190 @@
 Conversation views.
 """
 
+import base64
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
+from django.core.cache import cache
 from .models import ConversationSession
-from .serializers import ConversationSessionSerializer
+from .serializers import ConversationSessionSerializer, AudioChunkSerializer
+from .services import DeepgramService, LLMService
+from apps.emotions.models import Emotion
+
+
+class ConversationViewSet(viewsets.ViewSet):
+    """会話管理ViewSet"""
+
+    permission_classes = [IsAuthenticated]
+
+    @action(detail=False, methods=['post'], url_path='start')
+    def start_session(self, request):
+        """
+        会話セッション開始
+        POST /api/v1/conversation/start/
+        """
+        patient_id = request.data.get('patient_id')
+
+        if not patient_id:
+            return Response(
+                {'error': 'patient_id is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Create new session
+        session = ConversationSession.objects.create(
+            patient_id=patient_id,
+            started_at=timezone.now()
+        )
+
+        # Initialize Redis cache for accumulated text
+        cache_key = f"session:{session.id}:text"
+        cache.set(cache_key, "", timeout=3600)  # 1 hour TTL
+
+        return Response({
+            'session_id': str(session.id),
+            'patient_id': str(session.patient.id),
+            'started_at': session.started_at.isoformat(),
+            'status': 'active'
+        }, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=['post'], url_path='session')
+    def process_audio(self, request):
+        """
+        セッション通信（STT処理）
+        POST /api/v1/conversation/session/
+        """
+        serializer = AudioChunkSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        session_id = serializer.validated_data['session_id']
+        audio_data_base64 = serializer.validated_data['audio_data']
+
+        # Verify session exists and is active
+        try:
+            session = ConversationSession.objects.get(id=session_id)
+        except ConversationSession.DoesNotExist:
+            return Response(
+                {'error': 'session_not_found', 'message': 'セッションが見つかりません'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        if not session.is_active:
+            return Response(
+                {'error': 'session_already_ended', 'message': 'セッションは既に終了しています'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Decode base64 audio data
+        if audio_data_base64.startswith('data:audio'):
+            audio_data_base64 = audio_data_base64.split(',', 1)[1]
+        
+        audio_bytes = base64.b64decode(audio_data_base64)
+
+        # STT with Deepgram
+        deepgram_service = DeepgramService()
+        transcribed_text, confidence = deepgram_service.transcribe(audio_bytes)
+
+        # Append to Redis cache
+        cache_key = f"session:{session_id}:text"
+        current_text = cache.get(cache_key, "")
+        updated_text = f"{current_text} {transcribed_text}".strip()
+        cache.set(cache_key, updated_text, timeout=3600)
+
+        return Response({
+            'session_id': str(session_id),
+            'transcribed_text': transcribed_text,
+            'accumulated_text': updated_text,
+            'confidence': confidence
+        })
+
+
+class SessionViewSet(viewsets.ViewSet):
+    """セッション終了ViewSet"""
+
+    permission_classes = [IsAuthenticated]
+
+    @action(detail=True, methods=['post'], url_path='end')
+    def end_session(self, request, pk=None):
+        """
+        会話終了・保存・解析
+        POST /api/v1/sessions/{session_id}/end/
+        """
+        session_id = pk
+
+        # Verify session exists
+        try:
+            session = ConversationSession.objects.get(id=session_id)
+        except ConversationSession.DoesNotExist:
+            return Response(
+                {'error': 'session_not_found', 'message': 'セッションが見つかりません'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        if not session.is_active:
+            return Response(
+                {'error': 'session_already_ended', 'message': 'セッションは既に終了しています'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Get accumulated text from Redis
+        cache_key = f"session:{session_id}:text"
+        patient_text = cache.get(cache_key, "")
+
+        # LLM analysis
+        llm_service = LLMService()
+        try:
+            analysis_result = llm_service.analyze_conversation(patient_text)
+        except Exception as e:
+            return Response(
+                {'error': 'llm_processing_failed', 'message': f'感情分析に失敗しました: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+        # Get emotion from database
+        try:
+            emotion = Emotion.objects.get(name=analysis_result['emotion'])
+        except Emotion.DoesNotExist:
+            emotion = Emotion.objects.first()
+
+        # Generate TTS audio
+        deepgram_service = DeepgramService()
+        ai_audio_data = deepgram_service.text_to_speech(analysis_result['response'])
+        
+        # Convert audio to base64 for response
+        ai_audio_base64 = base64.b64encode(ai_audio_data).decode('utf-8') if ai_audio_data else ''
+
+        # Update session
+        session.ended_at = timezone.now()
+        session.patient_text = patient_text
+        session.ai_response_text = analysis_result['response']
+        session.emotion = emotion
+        session.emotion_reason = analysis_result['reason']
+        session.save()
+
+        # Clear Redis cache
+        cache.delete(cache_key)
+
+        return Response({
+            'session_id': str(session_id),
+            'patient_text': patient_text,
+            'ai_response_text': analysis_result['response'],
+            'ai_audio_base64': ai_audio_base64,
+            'emotion': {
+                'id': str(emotion.id) if emotion else None,
+                'name': emotion.name if emotion else None,
+                'name_ja': emotion.name_ja if emotion else None
+            },
+            'emotion_reason': analysis_result['reason'],
+            'ended_at': session.ended_at.isoformat()
+        })
 
 
 class ConversationSessionViewSet(viewsets.ModelViewSet):
-    """会話セッションViewSet"""
+    """会話セッション管理ViewSet（既存機能維持）"""
 
     queryset = ConversationSession.objects.all()
     serializer_class = ConversationSessionSerializer
@@ -62,32 +234,3 @@ class ConversationSessionViewSet(viewsets.ModelViewSet):
                 pass
 
         return queryset
-
-    @action(detail=False, methods=['post'])
-    def start(self, request):
-        """会話セッション開始"""
-        patient_id = request.data.get('patient_id')
-
-        if not patient_id:
-            return Response(
-                {'error': 'patient_id is required'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        session = ConversationSession.objects.create(
-            patient_id=patient_id,
-            started_at=timezone.now()
-        )
-
-        serializer = self.get_serializer(session)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
-
-    @action(detail=True, methods=['post'])
-    def end(self, request, pk=None):
-        """会話セッション終了"""
-        session = self.get_object()
-        session.ended_at = timezone.now()
-        session.save()
-
-        serializer = self.get_serializer(session)
-        return Response(serializer.data)
