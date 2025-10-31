@@ -1,5 +1,5 @@
 "use client";
-import { use } from 'react'; 
+import { use, useEffect } from 'react'; 
 import { useMemo, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import TimelineSlider from '@/components/TimelineSlider';
@@ -23,16 +23,25 @@ export default function PatientEmotionsPage({ params }: PageProps) {
   const initialOrder = (search.get('order') ?? 'desc') as 'asc' | 'desc';
 
   const { data, loading, error, query, setQuery, range } = usePatientEmotions(id, {
-    limit: initialLimit,
     order: initialOrder,
   });
 
   // slider selection (epoch ms)
   const [cursor, setCursor] = useState<number | null>(null);
+  
+  // Display limit for Plutchik wheel
+  const [displayLimit, setDisplayLimit] = useState<number>(initialLimit);
 
   // Dev dummy data toggle
   const [devMode, setDevMode] = useState(false);
   const [devData, setDevData] = useState<ConversationSession[] | null>(null);
+  
+  // Initialize cursor to max time when data loads
+  useEffect(() => {
+    if (!cursor && range.max) {
+      setCursor(range.max);
+    }
+  }, [range.max]);
 
   function genDummy(): ConversationSession[] {
     const keys = Object.keys(PLUTCHIK_CORE);
@@ -69,18 +78,22 @@ export default function PatientEmotionsPage({ params }: PageProps) {
     if (filter === 'all') return baseData;
     return baseData.filter((s) => (s.emotion_key || '').toLowerCase() === filter);
   }, [baseData, filter]);
-  const selected: ConversationSession[] = useMemo(() => {
+  
+  // Filter by time range based on cursor position
+  const timeFiltered = useMemo(() => {
     if (!Array.isArray(filtered) || filtered.length === 0) return [];
-    const N = query.limit ?? 10;
-    const sorted = Array.isArray(filtered) ? [...filtered].sort((a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime()) : [];
-    if (!cursor) return sorted.slice(0, N);
-    const withDist = sorted.map((s) => ({
-      s,
-      d: Math.abs(new Date(s.started_at).getTime() - cursor),
-    }));
-    withDist.sort((a, b) => a.d - b.d);
-    return withDist.slice(0, N).map((x) => x.s);
-  }, [filtered, cursor, query.limit]);
+    if (!cursor) return filtered;
+    
+    // Filter sessions that are before or at the cursor time
+    return filtered.filter((s) => new Date(s.started_at).getTime() <= cursor);
+  }, [filtered, cursor]);
+  
+  const selected: ConversationSession[] = useMemo(() => {
+    if (!Array.isArray(timeFiltered) || timeFiltered.length === 0) return [];
+    const N = displayLimit ?? 10;
+    const sorted = [...timeFiltered].sort((a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime());
+    return sorted.slice(0, N);
+  }, [timeFiltered, displayLimit]);
 
   // Update URL when changing limit/order
   function updateParam(name: string, value: string) {
@@ -132,13 +145,13 @@ export default function PatientEmotionsPage({ params }: PageProps) {
           <option className="bg-zinc-900" value="asc">古い順</option>
         </select>
 
-        <label className="text-sm">件数</label>
+        <label className="text-sm">表示件数</label>
         <select
           className="border rounded px-2 py-1 text-sm bg-zinc-900 border-zinc-600 text-white"
-          value={String(query.limit ?? 10)}
+          value={String(displayLimit ?? 10)}
           onChange={(e) => {
             const v = Number(e.target.value || 10);
-            setQuery((q) => ({ ...q, limit: v }));
+            setDisplayLimit(v);
             updateParam('limit', String(v));
           }}
         >
@@ -146,6 +159,10 @@ export default function PatientEmotionsPage({ params }: PageProps) {
             <option className="bg-zinc-900" key={n} value={n}>{n}</option>
           ))}
         </select>
+        
+        <div className="text-sm text-white/60">
+          全{baseData?.length || 0}件 / 時間範囲内{timeFiltered.length}件 / 表示{selected.length}件
+        </div>
       </div>
 
       <div className="flex flex-col gap-4">
@@ -173,8 +190,8 @@ export default function PatientEmotionsPage({ params }: PageProps) {
           </div>
         </div>
         <div className="flex flex-col gap-6">
-          <EmotionSummary sessions={baseData || []} title="感情サマリー（取得範囲）" />
-          <EmotionSummary sessions={selected} title="感情サマリー（選択N件）" />
+          <EmotionSummary sessions={selected} title={`感情サマリー（現在表示中の${selected.length}件）`} />
+          <EmotionSummary sessions={baseData || []} title="感情サマリー（全件）" />
         </div>
       </div>
     </div>

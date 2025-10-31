@@ -5,7 +5,7 @@ import { apiGet } from '../lib/api';
 import type { ConversationSession, EmotionsQuery } from '../types/conversation';
 
 export function usePatientEmotions(patientId: string, initial: EmotionsQuery = {}) {
-  const [query, setQuery] = useState<EmotionsQuery>({ order: 'desc', limit: 50, ...initial });
+  const [query, setQuery] = useState<EmotionsQuery>({ order: 'desc', ...initial });
   const [data, setData] = useState<ConversationSession[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -22,7 +22,6 @@ export function usePatientEmotions(patientId: string, initial: EmotionsQuery = {
             patient_id: patientId,
             from: query.from,
             to: query.to,
-            limit: query.limit ?? 50,
             order: query.order ?? 'desc',
           },
         );
@@ -43,7 +42,7 @@ export function usePatientEmotions(patientId: string, initial: EmotionsQuery = {
     return () => {
       cancelled = true;
     };
-  }, [patientId, query.from, query.to, query.limit, query.order]);
+  }, [patientId, query.from, query.to, query.order]);
 
   const range = useMemo(() => {
     if (!Array.isArray(data) || data.length === 0) return { min: null as number | null, max: null as number | null };

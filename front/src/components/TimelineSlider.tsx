@@ -30,19 +30,26 @@ export default function TimelineSlider({ min, max, value, onChange, disabled }: 
 
   return (
     <div className="w-full flex flex-col gap-2 text-white">
-      <input
-        type="range"
-        min={min}
-        max={max}
-        value={clamped ?? min}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full accent-white"
-        disabled={disabled}
-      />
-      <div className="flex justify-between text-xs">
-        <span>{fmt(min)}</span>
-        <span>{fmt(clamped)}</span>
-        <span>{fmt(max)}</span>
+      <div className="flex items-center gap-3">
+        <label className="text-sm font-medium whitespace-nowrap">時間軸選択:</label>
+        <div className="flex-1">
+          <input
+            type="range"
+            min={min}
+            max={max}
+            value={clamped ?? min}
+            onChange={(e) => onChange(Number(e.target.value))}
+            className="w-full accent-blue-500"
+            disabled={disabled}
+          />
+        </div>
+      </div>
+      <div className="flex justify-between text-xs text-white/70">
+        <span title={fmt(min)}>開始: {new Date(min).toLocaleDateString()}</span>
+        <span className="text-white font-medium" title={fmt(clamped)}>
+          選択中: {fmt(clamped)}
+        </span>
+        <span title={fmt(max)}>最新: {new Date(max).toLocaleDateString()}</span>
       </div>
     </div>
   );

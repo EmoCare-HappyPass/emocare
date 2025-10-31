@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from 'react';
-import { PLUTCHIK_CORE, PLUTCHIK_INTENSITY, normalizeEmotionKey, keyToPrimary, shadeColor } from '../lib/plutchik';
+import { PLUTCHIK_CORE, PLUTCHIK_INTENSITY, normalizeEmotionKey, keyToPrimary, shadeColor, getEmotionIntensity } from '../lib/plutchik';
 import type { ConversationSession } from '../types/conversation';
 import Tooltip from './Tooltip';
 
@@ -9,7 +9,7 @@ export interface PlutchikWheelProps {
   sessions: ConversationSession[]; // selected subset (latest few), assume desc
 }
 
-const SIZE = 320;
+const SIZE = 340;
 const CX = SIZE / 2;
 const CY = SIZE / 2;
 const INNER_R = 60; // inner radius of the core ring
@@ -87,14 +87,30 @@ export default function PlutchikWheel({ sessions }: PlutchikWheelProps) {
       const primary = keyToPrimary(kRaw) || (wedges[0].key as any);
       const wedge = wedges.find((w) => w.key === primary) || wedges[0];
       const angle = (wedge.start + wedge.end) / 2;
-      const score = typeof s.emotion_score === 'number' ? Math.min(1, Math.max(0, s.emotion_score)) : undefined;
-      const inner = INNER_R + 8;
-      const outer = OUTER2_R - 8;
-      const r = score != null
-        ? inner + (outer - inner) * score
-        : OUTER_R - 10 - (idx * (OUTER_R - INNER_R - 20)) / (maxN - 1 || 1);
+      
+      // Get intensity level to determine which ring to place the marker
+      const intensity = getEmotionIntensity(kRaw) || 'base';
+      
+      // Calculate radius based on intensity level
+      let targetR: number;
+      if (intensity === 'weak') {
+        // Inner ring (weak emotions)
+        targetR = INNER_R + 8 + (OUTER_R - INNER_R) * 0.3;
+      } else if (intensity === 'base') {
+        // Middle ring (base emotions)
+        targetR = INNER_R + (OUTER_R - INNER_R) * 0.5;
+      } else {
+        // Outer ring (strong emotions)
+        targetR = OUTER_R + (OUTER2_R - OUTER_R) * 0.5;
+      }
+      
+      // Apply emotion_score variation if available (±10% around target)
+      const score = typeof s.emotion_score === 'number' ? Math.min(1, Math.max(0, s.emotion_score)) : 0.5;
+      const variation = (score - 0.5) * 0.2; // -0.1 to +0.1
+      const r = targetR * (1 + variation);
+      
       const pos = polarToCartesian(CX, CY, r, angle);
-      return { s, x: pos.x, y: pos.y, color: PLUTCHIK_CORE[wedge.key].color };
+      return { s, x: pos.x, y: pos.y, color: PLUTCHIK_CORE[wedge.key].color, intensity };
     });
   }, [sessions, wedges]);
 
@@ -171,45 +187,10 @@ export default function PlutchikWheel({ sessions }: PlutchikWheelProps) {
           });
         })}
 
-        {/* Labels */}
-        {wedges.map(({ key, info, start, end }) => {
-          const angle = (start + end) / 2;
-          const { x, y } = polarToCartesian(CX, CY, OUTER2_R + 18, angle);
-          return (
-            <g key={`label-group-${key}`}>
-              <text
-                key={`lbl-outline-${key}`}
-                x={x}
-                y={y}
-                fontSize={11}
-                textAnchor="middle"
-                dominantBaseline="middle"
-                fill="#ffffff"
-                stroke="#000000"
-                strokeWidth={2}
-                paintOrder="stroke fill"
-              >
-                {info.labelJa}
-              </text>
-              <text
-                key={`lbl-${key}`}
-                x={x}
-                y={y}
-                fontSize={11}
-                textAnchor="middle"
-                dominantBaseline="middle"
-                fill="#ffffff"
-              >
-                {info.labelJa}
-              </text>
-            </g>
-          );
-        })}
-
         {/* Session markers with tooltips */}
-        {markers.map(({ s, x, y, color }) => {
-          const r = 4 + (typeof s.emotion_score === 'number' ? s.emotion_score * 6 : 0);
-          const opacity = 0.6 + (typeof s.emotion_score === 'number' ? s.emotion_score * 0.4 : 0);
+        {markers.map(({ s, x, y, color, intensity }) => {
+          const r = 4 + (typeof s.emotion_score === 'number' ? s.emotion_score * 6 : 2);
+          const opacity = 0.7 + (typeof s.emotion_score === 'number' ? s.emotion_score * 0.3 : 0);
           return (
             <circle
               key={s.id}
@@ -219,7 +200,7 @@ export default function PlutchikWheel({ sessions }: PlutchikWheelProps) {
               fill={color}
               opacity={opacity}
               stroke="#111827"
-              strokeWidth={0.5}
+              strokeWidth={1}
               tabIndex={0}
               role="button"
               aria-label={`${s.emotion_name ?? '不明'}: ${new Date(s.started_at).toLocaleString()}`}
