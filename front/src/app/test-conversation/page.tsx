@@ -2,6 +2,21 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link'; // <-- ★エラー修正: この行を追加しました
+// UI改善のためにアイコンをインポート
+import { 
+  LogOut, 
+  Mic, 
+  Square, 
+  Bot, 
+  Smile, 
+  User, 
+  Loader2,
+  CheckCircle2,
+  XCircle,
+  PlayCircle,
+  ChevronRight
+} from 'lucide-react';
 
 const WS_BASE_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000';
 
@@ -41,6 +56,7 @@ export default function TestConversationPage() {
       setupWebSocket();
     } else {
       addLog('認証情報が見つかりません。ログインページに移動してください');
+      router.push('/login'); // 認証情報がない場合はログインにリダイレクト
     }
 
     // Cleanup WebSocket on unmount
@@ -49,7 +65,7 @@ export default function TestConversationPage() {
         wsRef.current.close();
       }
     };
-  }, []);
+  }, [router]); // routerを依存配列に追加
 
   const setupWebSocket = () => {
     try {
@@ -65,7 +81,7 @@ export default function TestConversationPage() {
       };
 
       ws.onerror = (error) => {
-        addLog(`WebSocketエラー: ${error}`);
+        addLog(`WebSocketエラー: ${JSON.stringify(error)}`);
         setWsConnected(false);
       };
 
@@ -147,8 +163,8 @@ export default function TestConversationPage() {
               } else {
                 addLog('✗ エラー: audioRef.currentがnullです');
               }
-            } catch (error) {
-              addLog(`✗ 音声処理エラー: ${error}`);
+            } catch (error: any) { // エラーに型を明記
+              addLog(`✗ 音声処理エラー: ${error?.message || error}`);
               console.error('Audio processing error:', error);
             }
           } else {
@@ -169,26 +185,29 @@ export default function TestConversationPage() {
         default:
           addLog(`未知のメッセージタイプ: ${messageType}`);
       }
-    } catch (error) {
-      addLog(`メッセージ処理エラー: ${error}`);
+    } catch (error: any) { // エラーに型を明記
+      addLog(`メッセージ処理エラー: ${error?.message || error}`);
     }
   };
 
   const addLog = (message: string) => {
     const timestamp = new Date().toLocaleTimeString('ja-JP');
-    setLogs(prev => [...prev, `[${timestamp}] ${message}`]);
+    setLogs(prev => [`[${timestamp}] ${message}`, ...prev]); // 新しいログを上に追加
   };
 
   const handleLogout = () => {
     localStorage.removeItem('patientId');
     localStorage.removeItem('token');
     localStorage.removeItem('patientName');
+    if (wsRef.current) {
+      wsRef.current.close();
+    }
     router.push('/login');
   };
 
   const startSession = async () => {
     if (!patientId || !token) {
-      alert('Patient IDとTokenを入力してください');
+      alert('Patient IDとTokenが見つかりません');
       return;
     }
 
@@ -199,6 +218,9 @@ export default function TestConversationPage() {
 
     try {
       addLog('セッション開始リクエスト送信中...');
+      
+      // Clear previous results
+      clearAll();
 
       // Send WebSocket message to start session
       wsRef.current.send(JSON.stringify({
@@ -208,8 +230,8 @@ export default function TestConversationPage() {
 
       // Recording will be started automatically after receiving session_started message
 
-    } catch (error) {
-      addLog(`エラー: ${error}`);
+    } catch (error: any) { // エラーに型を明記
+      addLog(`エラー: ${error?.message || error}`);
       alert(`セッション開始失敗: ${error}`);
     }
   };
@@ -239,8 +261,8 @@ export default function TestConversationPage() {
       mediaRecorderRef.current = mediaRecorder;
       setIsRecording(true);
       addLog('録音開始');
-    } catch (error) {
-      addLog(`録音開始エラー: ${error}`);
+    } catch (error: any) { // エラーに型を明記
+      addLog(`録音開始エラー: ${error?.message || error}`);
       alert(`マイクへのアクセスが許可されませんでした: ${error}`);
     }
   };
@@ -285,8 +307,8 @@ export default function TestConversationPage() {
         audio_data: base64Audio
       }));
 
-    } catch (error) {
-      addLog(`STT処理エラー: ${error}`);
+    } catch (error: any) { // エラーに型を明記
+      addLog(`STT処理エラー: ${error?.message || error}`);
       alert(`音声認識失敗: ${error}`);
     }
   };
@@ -319,13 +341,19 @@ export default function TestConversationPage() {
         session_id: sessionId
       }));
 
-    } catch (error) {
-      addLog(`セッション終了エラー: ${error}`);
+    } catch (error: any) { // エラーに型を明記
+      addLog(`セッション終了エラー: ${error?.message || error}`);
       alert(`セッション終了失敗: ${error}`);
     }
   };
 
   const base64ToBlob = (base64: string, mimeType: string): Blob => {
+    // btoa/atob がNode.js環境（SSR時など）で利用できない場合を考慮
+    if (typeof atob === 'undefined') {
+      // Node.js
+      return new Blob([Buffer.from(base64, 'base64')], { type: mimeType });
+    }
+    // Browser
     const byteCharacters = atob(base64);
     const byteNumbers = new Array(byteCharacters.length);
     for (let i = 0; i < byteCharacters.length; i++) {
@@ -335,8 +363,8 @@ export default function TestConversationPage() {
     return new Blob([byteArray], { type: mimeType });
   };
 
+  // Clear only results, not logs or session
   const clearAll = () => {
-    setSessionId('');
     setTranscribedText('');
     setAccumulatedText('');
     setAiResponse('');
@@ -345,188 +373,182 @@ export default function TestConversationPage() {
     addLog('結果をクリアしました');
   };
 
+  // --- UI (JSX) ---
   return (
-    <div className="min-h-screen bg-gray-100 p-8">
+    <div className="min-h-screen bg-white p-6 md:p-12">
       <div className="max-w-4xl mx-auto">
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-800">会話管理API テスト</h1>
+        
+        {/* --- ヘッダー --- */}
+        <header className="flex justify-between items-center mb-8 pb-4 border-b border-gray-100">
+          <Link href="/">
+            <h1 className="font-heading text-4xl font-bold text-gray-800 transition-opacity hover:opacity-80">
+              EmoCare
+            </h1>
+          </Link>
           <button
             onClick={handleLogout}
-            className="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600"
+            className="flex items-center gap-2 bg-gray-100 text-gray-700 px-4 py-2 rounded-full font-medium text-sm transition-colors hover:bg-gray-200"
           >
+            <LogOut size={16} />
             ログアウト
           </button>
-        </div>
+        </header>
 
-        {patientName && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-            <p className="text-blue-800">
-              <strong>ログイン中:</strong> {patientName}
-            </p>
-          </div>
-        )}
-
-        {!token && (
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
-            <p className="text-yellow-800 mb-2">
-              <strong>認証が必要です</strong>
-            </p>
-            <button
-              onClick={() => router.push('/login')}
-              className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
-            >
-              ログインページへ
-            </button>
-          </div>
-        )}
-
-        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          <h2 className="text-xl font-semibold mb-4">設定</h2>
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Patient ID (UUID)
-              </label>
-              <input
-                type="text"
-                value={patientId}
-                onChange={(e) => setPatientId(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900"
-                placeholder="例: 123e4567-e89b-12d3-a456-426614174000"
-                readOnly
-              />
+        {/* --- ステータスカード --- */}
+        <section className="bg-white shadow-xl rounded-3xl p-6 mb-6">
+          <h2 className="text-xl font-bold text-gray-800 mb-4">接続ステータス</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-gray-50 rounded-2xl p-4">
+              <div className="font-semibold text-gray-700 mb-2">ログイン情報</div>
+              <div className="flex items-center gap-2">
+                {patientName ? (
+                  <CheckCircle2 size={18} className="text-green-500" />
+                ) : (
+                  <XCircle size={18} className="text-red-500" />
+                )}
+                <span className="text-gray-900 truncate">{patientName || '不明な患者'}</span>
+              </div>
+              <p className="text-xs text-gray-500 mt-2 truncate">ID: {patientId}</p>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                認証Token
-              </label>
-              <input
-                type="text"
-                value={token}
-                onChange={(e) => setToken(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900"
-                placeholder="ログイン後に自動設定"
-                readOnly
-              />
+            <div className="bg-gray-50 rounded-2xl p-4">
+              <div className="font-semibold text-gray-700 mb-2">サーバー接続</div>
+              <div className="flex items-center gap-2">
+                {wsConnected ? (
+                  <>
+                    <CheckCircle2 size={18} className="text-green-500" />
+                    <span className="text-gray-900">接続済み</span>
+                  </>
+                ) : (
+                  <>
+                    <XCircle size={18} className="text-red-500" />
+                    <span className="text-gray-900">切断</span>
+                  </>
+                )}
+              </div>
             </div>
           </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          <h2 className="text-xl font-semibold mb-4">操作</h2>
-          <div className="grid grid-cols-2 gap-4">
+        </section>
+        
+        {/* --- 操作カード --- */}
+        <section className="bg-white shadow-xl rounded-3xl p-6 mb-6">
+          <h2 className="text-xl font-bold text-gray-800 mb-4">対話コントロール</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            
+            {/* セッション開始ボタン */}
             <button
               onClick={startSession}
-              disabled={!patientId || !token || !!sessionId}
-              className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
+              disabled={!wsConnected || !!sessionId}
+              className="flex items-center justify-center gap-2 bg-primary text-white font-bold py-4 px-6 rounded-full text-lg
+                         transition-transform transform hover:scale-105 shadow-lg disabled:bg-gray-300 disabled:cursor-not-allowed disabled:transform-none"
             >
-              {sessionId ? '録音中...' : '1. セッション開始（自動録音）'}
+              {sessionId ? (
+                <>
+                  <Loader2 size={24} className="animate-spin" />
+                  録音中...
+                </>
+              ) : (
+                <>
+                  <PlayCircle size={24} />
+                  セッション開始
+                </>
+              )}
             </button>
+            
+            {/* セッション終了ボタン */}
             <button
               onClick={endSession}
               disabled={!sessionId}
-              className="bg-purple-500 text-white px-4 py-2 rounded-md hover:bg-purple-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
+              className="flex items-center justify-center gap-2 bg-gray-700 text-white font-bold py-4 px-6 rounded-full text-lg
+                         transition-transform transform hover:scale-105 shadow-lg disabled:bg-gray-300 disabled:cursor-not-allowed disabled:transform-none"
             >
-              3. セッション終了 (LLM解析)
-            </button>
-            <button
-              onClick={clearAll}
-              className="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600"
-            >
-              クリア
+              <Square size={24} />
+              セッション終了
             </button>
           </div>
-        </div>
+        </section>
+        
+        {/* --- 結果カード --- */}
+        <section className="bg-white shadow-xl rounded-3xl p-6 mb-6">
+          <h2 className="text-xl font-bold text-gray-800 mb-4">AIの応答と分析結果</h2>
 
-        {sessionId && (
-          <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-            <h2 className="text-xl font-semibold mb-4">セッション情報</h2>
-            <p className="text-sm text-gray-600 break-all">
-              <strong>Session ID:</strong> {sessionId}
-            </p>
-          </div>
-        )}
-
-        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          <h2 className="text-xl font-semibold mb-4">結果</h2>
-          
-          {transcribedText && (
-            <div className="mb-4">
-              <h3 className="font-semibold text-gray-700 mb-2">最後のSTT結果:</h3>
-              <p className="bg-gray-50 p-3 rounded border text-gray-900">{transcribedText}</p>
-            </div>
-          )}
-
-          {accumulatedText && (
-            <div className="mb-4">
-              <h3 className="font-semibold text-gray-700 mb-2">累積テキスト:</h3>
-              <p className="bg-gray-50 p-3 rounded border text-gray-900">{accumulatedText}</p>
-            </div>
-          )}
-
-          {aiResponse && (
-            <div className="mb-4">
-              <h3 className="font-semibold text-gray-700 mb-2">AI応答:</h3>
-              <p className="bg-blue-50 p-3 rounded border border-blue-200 text-gray-900">{aiResponse}</p>
-              <audio ref={audioRef} controls className="w-full mt-2" />
-            </div>
-          )}
-
-          {emotion && (
-            <div className="mb-4">
-              <h3 className="font-semibold text-gray-700 mb-2">検出された感情:</h3>
-              <p className="bg-yellow-50 p-3 rounded border border-yellow-200 text-gray-900">
-                <strong>{emotion}</strong>
-              </p>
-            </div>
-          )}
-
-          {emotionReason && (
-            <div className="mb-4">
-              <h3 className="font-semibold text-gray-700 mb-2">感情選定理由:</h3>
-              <p className="bg-gray-50 p-3 rounded border text-gray-900">{emotionReason}</p>
-            </div>
-          )}
-        </div>
-
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <h2 className="text-xl font-semibold mb-4">ログ</h2>
-          <div className="bg-gray-900 text-green-400 p-4 rounded font-mono text-sm h-64 overflow-y-auto">
-            {logs.length === 0 ? (
-              <p className="text-gray-500">ログはまだありません</p>
+          {/* AI応答 */}
+          <div className="mb-4">
+            <h3 className="flex items-center gap-2 font-semibold text-gray-700 mb-2">
+              <Bot size={18} className="text-primary" />
+              AIの応答
+            </h3>
+            {aiResponse ? (
+              <div className="bg-primary/10 p-4 rounded-2xl border border-primary/20">
+                <p className="text-gray-900 leading-relaxed">{aiResponse}</p>
+                <audio ref={audioRef} controls className="w-full mt-3" />
+              </div>
             ) : (
-              logs.map((log, index) => (
-                <div key={index} className="mb-1">
-                  {log}
-                </div>
-              ))
+              <p className="text-gray-500 text-sm">セッション終了後にここに表示されます</p>
             )}
           </div>
-        </div>
 
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mt-6">
-          <h3 className="font-semibold text-blue-900 mb-2">使用方法:</h3>
-          <ol className="list-decimal list-inside text-sm text-blue-800 space-y-1">
-            <li>認証情報が自動で読み込まれます</li>
-            <li>「セッション開始（録音開始）」ボタンをクリック - 自動的に録音が開始されます</li>
-            <li>話したいことを話す</li>
-            <li>「録音停止」ボタンをクリックしてSTT処理を実行（必要に応じて録音再開も可能）</li>
-            <li>「セッション終了」ボタンをクリックしてLLM解析とTTS生成を実行</li>
-            <li>AI応答と感情分析結果を確認、音声が自動再生されます</li>
-          </ol>
-          <div className="mt-4 pt-4 border-t border-blue-200">
-            <p className="text-sm text-blue-800">
-              <strong>注意:</strong> ログインしていない場合は、
-              <button
-                onClick={() => router.push('/login')}
-                className="text-blue-600 hover:text-blue-800 underline mx-1"
-              >
-                ログインページ
-              </button>
-              から認証してください。
-            </p>
+          <hr className="my-6 border-gray-100" />
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* あなたの発話 */}
+            <div className="mb-4">
+              <h3 className="flex items-center gap-2 font-semibold text-gray-700 mb-2">
+                <User size={18} className="text-gray-600" />
+                あなたの発話（累積）
+              </h3>
+              {accumulatedText ? (
+                <div className="bg-gray-50 p-4 rounded-2xl border border-gray-200 h-32 overflow-y-auto">
+                  <p className="text-gray-900 leading-relaxed">{accumulatedText}</p>
+                </div>
+              ) : (
+                <p className="text-gray-500 text-sm">録音後にここに表示されます</p>
+              )}
+            </div>
+
+            {/* 感情分析 */}
+            <div className="mb-4">
+              <h3 className="flex items-center gap-2 font-semibold text-gray-700 mb-2">
+                <Smile size={18} className="text-gray-600" />
+                検出した感情
+              </h3>
+              {emotion ? (
+                <div className="bg-gray-50 p-4 rounded-2xl border border-gray-200">
+                  <span className="inline-block bg-primary/20 text-primary-dark font-bold px-4 py-1 rounded-full text-lg">
+                    {emotion}
+                  </span>
+                  <h4 className="font-semibold text-gray-700 mt-3 mb-1 text-sm">分析理由:</h4>
+                  <p className="text-gray-800 text-sm">{emotionReason}</p>
+                </div>
+              ) : (
+                <p className="text-gray-500 text-sm">セッション終了後にここに表示されます</p>
+              )}
+            </div>
           </div>
-        </div>
+        </section>
+
+        {/* --- ログ --- */}
+        <section className="mb-6">
+          <details className="bg-white shadow-xl rounded-3xl overflow-hidden">
+            <summary className="p-6 cursor-pointer flex justify-between items-center group">
+              <h2 className="text-xl font-bold text-gray-800">
+                詳細ログ
+              </h2>
+              <ChevronRight size={24} className="text-gray-500 transform transition-transform group-open:rotate-90" />
+            </summary>
+            <div className="bg-gray-900 text-green-400 p-4 font-mono text-sm h-64 overflow-y-auto border-t border-gray-200">
+              {logs.length === 0 ? (
+                <p className="text-gray-500">ログはまだありません</p>
+              ) : (
+                logs.map((log, index) => (
+                  <div key={index} className="mb-1 break-all">
+                    {log}
+                  </div>
+                ))
+              )}
+            </div>
+          </details>
+        </section>
+
       </div>
     </div>
   );

@@ -221,7 +221,7 @@ export default function LoginPage() {
                 Password: password123
               </p>
               <p className="text-xs text-gray-500 mt-2 text-center">
-                (※バックエンドでの事前登録が必要です)
+                (※事前登録が必要です)
               </p>
             </div>
           )}
