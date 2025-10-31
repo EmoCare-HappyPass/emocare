@@ -1,12 +1,11 @@
 import Image from "next/image";
-import Link from "next/link"; // Next.js の Link をインポート
+import Link from "next/link";
 import { Mic, Bot, BrainCircuit } from "lucide-react";
 
 export default function Home() {
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-white p-6 md:p-12">
       <main className="flex flex-col items-center w-full max-w-4xl gap-12">
-        {/* ヘッダー: EmoCare */}
         <header className="text-center">
           <h1 className="font-heading text-6xl md:text-7xl font-bold text-gray-800">
             EmoCare
@@ -15,8 +14,6 @@ export default function Home() {
             AI感情可視化・共感ケア支援システム
           </p>
         </header>
-
-        {/* メインカード */}
         <section className="bg-white shadow-xl rounded-3xl p-8 md:p-12 w-full max-w-lg text-center">
           <h2 className="text-3xl font-bold text-gray-800 mb-4">ようこそ</h2>
           <p className="text-gray-600 leading-relaxed mb-8">
@@ -24,20 +21,16 @@ export default function Home() {
             <br />
             音声で会話し、AIが共感的に応答します。
           </p>
-
           <div className="flex flex-col gap-4">
-            {/* プライマリボタン (Link に変更) */}
             <Link
-              href="/login" // 遷移先を /login に指定
+              href="/login"
               className="bg-primary text-white font-bold py-4 px-6 rounded-full text-lg
                          transition-transform transform hover:scale-105 hover:bg-red-500 shadow-lg"
             >
               ログイン / 新規登録
             </Link>
-            
-            {/* セカンダリボタン (Link に変更) */}
             <Link
-              href="#" // 遷移先を適切に設定してください (例: /test)
+              href="#"
               className="bg-gray-100 text-gray-700 font-bold py-4 px-6 rounded-full text-lg
                          transition-transform transform hover:scale-105 hover:bg-gray-200"
             >
@@ -45,8 +38,6 @@ export default function Home() {
             </Link>
           </div>
         </section>
-
-        {/* 機能紹介カード */}
         <section className="grid grid-cols-1 md:grid-cols-3 gap-8 w-full mt-8">
           <FeatureCard
             icon={<Mic size={40} className="text-primary" />}
@@ -69,7 +60,6 @@ export default function Home() {
   );
 }
 
-// 機能カードコンポーネント
 function FeatureCard({
   icon,
   title,

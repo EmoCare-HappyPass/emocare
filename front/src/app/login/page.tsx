@@ -27,7 +27,6 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      // ログインと登録でエンドポイントを切り替え
       const endpoint = isLogin ? '/patients/login/' : '/patients/register/';
       
       const payload = isLogin
@@ -51,7 +50,6 @@ export default function LoginPage() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        // Djangoからのエラー詳細 (detail) を表示
         throw new Error(errorData.non_field_errors?.[0] || errorData.detail || '認証に失敗しました');
       }
 
@@ -61,7 +59,6 @@ export default function LoginPage() {
       localStorage.setItem('token', data.token);
       localStorage.setItem('patientName', data.name);
 
-      // ログイン成功後、/test-conversation にリダイレクト
       router.push('/test-conversation');
     } catch (err: any) {
       setError(err.message);
@@ -146,10 +143,50 @@ export default function LoginPage() {
                 placeholder="8文字以上"
               />
             </div>
-
+            
+            {/* 登録時のみ表示するフィールドを追加 */}
             {!isLogin && (
               <>
-                {/* 登録時のみ表示する他のフィールド */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2 ml-4">
+                    生年月日
+                  </label>
+                  <input
+                    type="date"
+                    name="birth_date"
+                    value={formData.birth_date}
+                    onChange={handleChange}
+                    className="w-full px-5 py-3 border border-gray-300 rounded-full focus:ring-2 focus:ring-primary focus:border-transparent text-gray-900"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2 ml-4">
+                    性別
+                  </label>
+                  <select
+                    name="gender"
+                    value={formData.gender}
+                    onChange={handleChange}
+                    className="w-full px-5 py-3 border border-gray-300 rounded-full focus:ring-2 focus:ring-primary focus:border-transparent text-gray-900 appearance-none"
+                  >
+                    <option value="">選択してください</option>
+                    <option value="male">男性</option>
+                    <option value="female">女性</option>
+                    <option value="other">その他</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2 ml-4">
+                    入院日
+                  </label>
+                  <input
+                    type="date"
+                    name="admission_date"
+                    value={formData.admission_date}
+                    onChange={handleChange}
+                    className="w-full px-5 py-3 border border-gray-300 rounded-full focus:ring-2 focus:ring-primary focus:border-transparent text-gray-900"
+                  />
+                </div>
               </>
             )}
 
@@ -174,7 +211,6 @@ export default function LoginPage() {
             </button>
           </div>
 
-          {/* テストアカウント情報 */}
           {isLogin && (
             <div className="mt-6 p-4 bg-gray-100 rounded-2xl">
               <p className="text-sm text-gray-700 font-bold mb-2 text-center">
