@@ -3,11 +3,11 @@ Conversation models.
 """
 
 from django.db import models
-from apps.core.models import UUIDModel, TimeStampedModel
+from apps.core.models import TimeStampedModel
 from apps.patients.models import Patient
 
 
-class ConversationSession(UUIDModel, TimeStampedModel):
+class ConversationSession(TimeStampedModel):
     """会話セッションモデル
 
     患者とAIの1回の会話セッション全体を記録。
