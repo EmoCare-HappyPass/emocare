@@ -4,10 +4,10 @@ Patient models.
 
 from django.db import models
 from django.contrib.auth.hashers import make_password, check_password
-from apps.core.models import UUIDModel, TimeStampedModel
+from apps.core.models import TimeStampedModel
 
 
-class Patient(UUIDModel, TimeStampedModel):
+class Patient(TimeStampedModel):
     """患者モデル
 
     患者の基本情報と認証情報を管理。

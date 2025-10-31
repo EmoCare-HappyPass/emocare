@@ -3,10 +3,11 @@ Conversation views.
 """
 
 import base64
+import uuid
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from django.core.cache import cache
@@ -32,6 +33,15 @@ class ConversationViewSet(viewsets.ViewSet):
         if not patient_id:
             return Response(
                 {'error': 'patient_id is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # patient_idを整数に変換
+        try:
+            patient_id = int(patient_id)
+        except (ValueError, TypeError):
+            return Response(
+                {'error': 'patient_id must be an integer'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -191,12 +201,24 @@ class ConversationSessionViewSet(viewsets.ModelViewSet):
     serializer_class = ConversationSessionSerializer
     permission_classes = [IsAuthenticated]
 
+    def get_permissions(self):
+        """GETメソッドは認証不要（一時的）、今後は医者側の認証を実装予定"""
+        if self.action in ['list', 'retrieve']:
+            return [AllowAny()]
+        return [IsAuthenticated()]
+
     def get_queryset(self):
         queryset = super().get_queryset()
 
         params = self.request.query_params
         patient_id = params.get('patient_id')
         if patient_id:
+            # クォートを削除し、整数に変換
+            patient_id = patient_id.strip('"\'')
+            try:
+                patient_id = int(patient_id)
+            except (ValueError, TypeError):
+                pass
             queryset = queryset.filter(patient_id=patient_id)
 
         # Time range filters
@@ -218,7 +240,7 @@ class ConversationSessionViewSet(viewsets.ModelViewSet):
                 queryset = queryset.filter(started_at__lte=dt_to)
 
         # Ordering
-        order = params.get('order', 'desc').lower()
+        order = params.get('order', 'desc').strip('"\'').lower()
         if order not in ('asc', 'desc'):
             order = 'desc'
         queryset = queryset.order_by('started_at' if order == 'asc' else '-started_at')

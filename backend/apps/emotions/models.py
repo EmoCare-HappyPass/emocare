@@ -3,10 +3,10 @@ Emotion models.
 """
 
 from django.db import models
-from apps.core.models import UUIDModel, TimeStampedModel
+from apps.core.models import TimeStampedModel
 
 
-class Emotion(UUIDModel, TimeStampedModel):
+class Emotion(TimeStampedModel):
     """感情マスターモデル
 
     プルチックの52感情をマスターデータとして管理。
