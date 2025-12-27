@@ -21,7 +21,13 @@
       ]
     }
   },
-  "forwardPorts": [3001, 8080, 5433],
+  "forwardPorts": [3001, 8080,8000, 5433],
+  "portsAttributes": {
+    "8000": {
+      "label": "Daphne / ASGI app",
+      "onAutoForward": "openBrowser" // or "notify"
+    }
+  },
   "remoteUser": "root",
   "postCreateCommand": ".devcontainer/setupo.sh"
 
